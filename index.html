@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="es" data-theme="dark">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Clickap — v8 fix (100% local)</title>
+  <!-- Estilos externos -->
+  <link rel="stylesheet" href="./css/styles.css"/>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2360a5fa'/%3E%3Cpath d='M18 36l8 8 20-20' stroke='white' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+</head>
+<body>
+<header>
+  <div class="topbar">
+    <div class="brand"><div class="logo"></div> Clickap <span class="chip" id="versionChip"></span></div>
+    <div class="bar-actions">
+      <input id="globalSearch" class="search" placeholder="Buscar (Ctrl+F)…"/>
+      <button class="btn" id="btnNewTask">+ Nueva (Ctrl+N)</button>
+      <input id="quickTitle" placeholder="Captura rápida…"/>
+      <button class="btn primary" id="btnQuickAdd">+ Capturar</button>
+      <button class="btn" id="btnExport">Exportar</button>
+      <label class="btn ghost"><input type="file" id="fileImport" hidden/>Importar</label>
+      <button class="btn" id="toggleTheme">🌗 Tema</button>
+    </div>
+  </div>
+  <div class="tabs">
+    <div class="tab active" data-view="home">Inicio</div>
+    <div class="tab" data-view="board">Tablero</div>
+    <div class="tab" data-view="tasks">Tareas</div>
+    <div class="tab" data-view="docs">Documentos</div>
+    <div class="tab" data-view="summary">Resumen</div>
+    <div class="tab" data-view="settings">Ajustes</div>
+    <div class="chip" id="xpChip">Nivel 1 · 0 XP</div>
+  </div>
+</header>
+
+<main>
+  <section id="view-home" class="view"></section>
+  <section id="view-board" class="view" style="display:none"></section>
+  <section id="view-tasks" class="view" style="display:none"></section>
+  <section id="view-docs" class="view" style="display:none"></section>
+  <section id="view-summary" class="view" style="display:none"></section>
+  <section id="view-settings" class="view" style="display:none"></section>
+</main>
+
+<footer>100% local · sin servidores · tus datos viven en tu navegador (localStorage). Backup recomendado con “Exportar”.</footer>
+
+<dialog id="taskDialog"></dialog>
+<div class="confetti" id="confetti"></div>
+<div class="mega" id="mega">
+  <div class="inner">
+    <button class="close" id="megaClose">Cerrar ✕</button>
+    <div id="megaTxt"></div>
+  </div>
+</div>
+
+<div id="cmd" class="cmd"></div>
+
+<!-- Lógica externa -->
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>
