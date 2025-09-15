@@ -15,6 +15,9 @@ import { randomKillLine } from '../core/humor.js';
 import { confettiBurst, successSound } from '../core/effects.js';
 import { refresh } from '../core/bus.js';
 
+// Estado UI local: tareas colapsadas en la lista (no se persiste)
+const collapsed = new Set();
+
 export function renderTasksList(){
   const host = document.getElementById('view-tasks'); if(!host) return;
 
@@ -61,7 +64,10 @@ export function renderTasksList(){
             if(isSub){
               return `<td data-open-sub="${t.id}:${st.id}" style="${base};padding-left:24px;cursor:pointer;text-decoration:underline">${escapeHtml(st.title)}</td>`;
             }
-            return `<td data-open="${t.id}" style="${base};cursor:pointer;text-decoration:underline">${escapeHtml(t.title)}</td>`;
+            const hasSubs = Array.isArray(t.subtasks) && t.subtasks.length>0;
+            const arrow = hasSubs ? (collapsed.has(t.id) ? '▸' : '▾') : '';
+            const arrowHtml = hasSubs ? `<span data-toggle="${t.id}" title="Mostrar/ocultar subtareas" style="display:inline-block;width:16px;text-align:center;margin-right:6px;cursor:pointer;user-select:none">${arrow}</span>` : '';
+            return `<td data-open="${t.id}" style="${base};cursor:pointer;text-decoration:underline">${arrowHtml}<span>${escapeHtml(t.title)}</span></td>`;
           }
           case 'status':{
             const val = isSub ? (st.status || (st.done?FINAL_STATUS:'To do')) : t.status;
@@ -124,7 +130,8 @@ export function renderTasksList(){
               ${cols.map(c=>cellHtml(c,t,null)).join('')}
               <td style="padding:8px;border-bottom:1px solid var(--border)"><button class="btn ghost" data-addsub="${t.id}" title="Añadir subtarea">＋</button></td>
             </tr>`;
-            const subRows = (t.subtasks||[]).map(st=>`
+            const isCollapsed = collapsed.has(t.id);
+            const subRows = isCollapsed ? '' : (t.subtasks||[]).map(st=>`
               <tr data-id="${t.id}" data-sub="${t.id}:${st.id}">
                 ${cols.map(c=>cellHtml(c,t,st)).join('')}
                 <td style="padding:8px;border-bottom:1px solid var(--border)"></td>
@@ -149,6 +156,14 @@ export function renderTasksList(){
   // Abrir tarea desde la celda título
   host.querySelectorAll('[data-open]').forEach(el=> el.addEventListener('click', ()=>{
     const id=el.dataset.open; const t=(state.tasks||[]).find(x=>x.id===id); if(t) openTaskDialog(t);
+  }));
+
+  // Toggle mostrar/ocultar subtareas
+  host.querySelectorAll('[data-toggle]').forEach(el=> el.addEventListener('click', (ev)=>{
+    ev.stopPropagation();
+    const id = el.dataset.toggle;
+    if(collapsed.has(id)) collapsed.delete(id); else collapsed.add(id);
+    renderTasksList();
   }));
 
   // Añadir subtarea
