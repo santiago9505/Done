@@ -28,6 +28,15 @@ input:focus, textarea:focus{outline:2px solid var(--primary);outline-offset:1px}
 .tab{padding:8px 10px;border-radius:10px;cursor:pointer;color:var(--muted)}
 .tab.active{color:var(--text);background:var(--panel);box-shadow:var(--shadow)}
 main{padding:16px;max-width:1400px;margin:0 auto}
+.main-grid{display:grid;grid-template-columns:260px 1fr;gap:14px;align-items:start}
+#projectsSidebar{position:sticky;top:96px;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:10px;box-shadow:var(--shadow);max-height:75vh;overflow:auto}
+#projectsSidebar .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+#projectsSidebar .proj-list{display:flex;flex-direction:column;gap:6px}
+#projectsSidebar .proj{display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px solid var(--border);border-radius:10px;padding:6px 8px;cursor:pointer}
+#projectsSidebar .proj.active{outline:2px solid var(--primary)}
+#projectsSidebar .proj .name{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#projectsSidebar .proj .x{opacity:.7;cursor:pointer}
+#projectsSidebar .create{display:flex;gap:6px;margin-top:8px}
 
 .view-flex{display:grid;grid-template-columns:1.4fr .9fr;gap:12px}
 
@@ -127,4 +136,6 @@ footer{padding:30px;color:var(--muted);text-align:center}
   .sheet{grid-template-columns:1fr}
   .cards{grid-template-columns:1fr 1fr}
   .view-flex{grid-template-columns:1fr}
+  .main-grid{grid-template-columns:1fr}
+  #projectsSidebar{position:static;max-height:none}
 }

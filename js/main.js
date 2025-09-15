@@ -9,6 +9,7 @@ import { renderSummary } from './views/summary.js';
 import { renderSettings } from './views/settings.js';
 import { wireToolbar } from './ui/toolbar.js';
 import { applyScheduledRecurrences } from './logic/recurrence.js';
+import { renderProjectsSidebar } from './ui/projects.js';
 
 function setActive(view){
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.view===view));
@@ -31,6 +32,7 @@ setRefreshers({ renderHome, renderBoard, renderTasksList });
 wireToolbar();
 applyTheme();
 renderXP();
+renderProjectsSidebar();
 
 // Semilla mínima si está vacío
 (function seedOnceIfEmpty(){

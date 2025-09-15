@@ -7,11 +7,16 @@ export function renderHome(){
   const host=document.getElementById('view-home'); if(!host) return;
 
   const isToday=t=> t.due && isSameDay(new Date(t.due), new Date());
+  const pid = state.projectFilter;
+  const pidMatch = t => (pid==='all' ? true : (pid==='none' ? (t.projectId==null) : t.projectId===pid));
   const overdueList=(state.tasks||[])
+    .filter(pidMatch)
     .filter(t=>t.status!==FINAL_STATUS && t.due && t.due< Date.now())
     .sort((a,b)=>a.due-b.due);
+  const now = Date.now();
   const todayList=(state.tasks||[])
-    .filter(t=>t.status!==FINAL_STATUS && isToday(t))
+    .filter(pidMatch)
+    .filter(t=> t.status!==FINAL_STATUS && isToday(t) && t.due >= now)
     .sort((a,b)=>a.due-b.due);
 
   const left=`<div class="card"><h3 class="h">My Work</h3>
@@ -39,6 +44,7 @@ export function renderHome(){
 
   const hours=[...Array(13)].map((_,i)=> i+8);
   const events = (state.tasks||[])
+    .filter(pidMatch)
     .filter(t=> t.due && isToday(t))
     .map(t=>({t,start:new Date(t.due).getHours()+new Date(t.due).getMinutes()/60}));
   const right=`<div class="card"><h3 class="h">Calendar — ${new Date().toLocaleDateString()}</h3>

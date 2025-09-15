@@ -1,5 +1,6 @@
 // /js/views/tasks.js
 import { state, FINAL_STATUS, save } from '../core/state.js';
+import { getCurrentProjectId, getProjectNameById } from '../ui/projects.js';
 import {
   escapeHtml,
   fmtDateTime,
@@ -17,10 +18,12 @@ export function renderTasksList(){
   const host = document.getElementById('view-tasks'); if(!host) return;
 
   const q = (document.getElementById('globalSearch')?.value||'').toLowerCase().trim();
-  const cols = (state.settings && state.settings.taskListCols) || ['title','status','prio','due','tags','points'];
-  const labels = {title:'Título', status:'Estado', prio:'Prioridad', due:'Vence', tags:'Tags', points:'Pts'};
+    const cols = (state.settings && state.settings.taskListCols) || ['title','status','prio','due','tags','points','project'];
+    const labels = {title:'Título', status:'Estado', prio:'Prioridad', due:'Vence', tags:'Tags', points:'Pts', project:'Proyecto'};
 
+  const pid = state.projectFilter;
   const rows = (state.tasks||[])
+    .filter(t=> pid==='all' ? true : (pid==='none' ? (t.projectId==null) : t.projectId===pid))
     .filter(t=> !q || t.title.toLowerCase().includes(q) || (t.desc||'').toLowerCase().includes(q) || (t.tags||[]).join(' ').toLowerCase().includes(q))
     .sort((a,b)=> (a.updated||0) < (b.updated||0)?1:-1);
 
@@ -42,7 +45,12 @@ export function renderTasksList(){
   host.querySelector('#groupTasksSel').addEventListener('change',(e)=>{
     state.groupTasks=e.target.value; save(); renderTasksList();
   });
-  host.querySelector('#btnNewTaskTable').addEventListener('click',()=> openTaskDialog({status:'To do'}));
+  host.querySelector('#btnNewTaskTable').addEventListener('click',()=>{
+    const pid = getCurrentProjectId();
+    const init = { status:'To do' };
+    if(pid !== undefined) init.projectId = pid;
+    openTaskDialog(init);
+  });
 
   function cellHtml(c,t){
     switch(c){
@@ -52,6 +60,8 @@ export function renderTasksList(){
         return `<td style="padding:8px;border-bottom:1px solid var(--border)">
           <select data-field="status">${state.columns.map(x=>`<option ${t.status===x?'selected':''}>${x}</option>`).join('')}</select>
         </td>`;
+      case 'project':
+        return `<td style="padding:8px;border-bottom:1px solid var(--border)">${escapeHtml(getProjectNameById(t.projectId))}</td>`;
       case 'prio':
         return `<td style="padding:8px;border-bottom:1px solid var(--border)">
           <select data-field="prio">

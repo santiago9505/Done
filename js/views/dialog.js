@@ -1,4 +1,5 @@
 import { state, save, uid, FINAL_STATUS, XP_CREATE, XP_CLOSE, findTask } from '../core/state.js';
+import { getProjectNameById } from '../ui/projects.js';
 import { escapeHtml, escapeAttr, fmtDateTime, toLocalDatetimeInput, parseLocalDatetimeInput, subPoints, displayPoints } from '../core/utils.js';
 import { addXP } from '../core/effects.js';
 import { randomKillLine } from '../core/humor.js';
@@ -25,7 +26,7 @@ export function openTaskDialog(init){
   const isSub = !!init.isSub;
   const isNew = !init.id;
   const t = Object.assign({
-    id: uid(), title:'', desc:'', prio:'Med', due:null, tags:[],
+    id: uid(), title:'', desc:'', prio:'Med', due:null, tags:[], projectId: null,
     status: init.status || 'To do',
     created: Date.now(), updated: Date.now(), closed: null,
     docIds:[], points:1, subtasks:[],
@@ -40,6 +41,7 @@ export function openTaskDialog(init){
         <div class="meta-bar">
           <span class="chip">Estado: ${t.status}</span>
           ${t.due?`<span class="chip">Vence: ${fmtDateTime(t.due)}</span>`:''}
+          <span class="chip">Proyecto: ${escapeHtml(getProjectNameById(t.projectId))}</span>
           <span class="chip">Points: ${displayPoints(t)}</span>
         </div>
         <label>Título</label>
@@ -48,6 +50,16 @@ export function openTaskDialog(init){
           <div><label>Estado</label><select id="t-status" style="width:100%">${state.columns.map(c=>`<option ${t.status===c?'selected':''}>${c}</option>`).join('')}</select></div>
           <div><label>Prioridad</label><select id="t-prio" style="width:100%"><option ${t.prio==='Low'?'selected':''}>Low</option><option ${t.prio==='Med'?'selected':''}>Med</option><option ${t.prio==='High'?'selected':''}>High</option></select></div>
         </div>
+        ${isSub? '' : `<div class="inline-grid" style="margin-top:8px">
+            <div>
+              <label>Proyecto</label>
+              <select id="t-project" style="width:100%">
+                <option value="" ${t.projectId==null?'selected':''}>Sin proyecto</option>
+                ${(state.projects||[]).map(p=>`<option value="${p.id}" ${t.projectId===p.id?'selected':''}>${escapeHtml(p.name)}</option>`).join('')}
+              </select>
+            </div>
+            <div></div>
+          </div>`}
         <div class="inline-grid" style="margin-top:8px">
           <div><label>Vence</label><input id="t-due" type="datetime-local" value="${t.due ? toLocalDatetimeInput(t.due) : ''}" style="width:100%"/></div>
           <div><label>Points</label><input id="t-points" type="number" min="0" step="1" value="${t.points||0}" style="width:100%" ${(t.subtasks&&t.subtasks.length && !isSub)?'disabled title="Sumado desde subtareas"':''}/></div>
@@ -101,6 +113,10 @@ export function openTaskDialog(init){
     t.points = parseInt(dlg.querySelector('#t-points').value||'0',10);
     t.desc   = dlg.querySelector('#t-desc').value;
     t.tags   = captureTags(dlg);
+    if(!isSub){
+      const pjSel = dlg.querySelector('#t-project');
+      if(pjSel){ const v=pjSel.value; t.projectId = v? v : null; }
+    }
     t.recur = {
       type: dlg.querySelector('#t-recur-type').value,
       every: parseInt(dlg.querySelector('#t-recur-every').value||'1',10),
@@ -161,7 +177,7 @@ export function closeTask(id){
     state.lastDayClosed=today; 
   }
 
-+  addXP(XP_CLOSE); showMega(randomKillLine());
+  addXP(XP_CLOSE); showMega(randomKillLine());
   try{ handleRecurrence(t); }catch{}
   renderBoard(); renderTasksList();
 }

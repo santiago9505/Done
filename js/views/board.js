@@ -11,6 +11,7 @@ import { closeTask, openTaskDialog } from './dialog.js';
 import { showMega } from '../core/mega.js';
 import { randomKillLine } from '../core/humor.js';
 import { confettiBurst, successSound } from '../core/effects.js';
+import { getCurrentProjectId, getProjectNameById } from '../ui/projects.js';
 
 export function renderBoard(){
   // Dedup por id para evitar rarezas
@@ -40,7 +41,13 @@ export function renderBoard(){
   top.querySelector('#groupBoardSel').addEventListener('change', (e)=>{
     state.groupBoard=e.target.value; save(); renderBoard();
   });
-  top.querySelector('#addTaskBoard').addEventListener('click', ()=> openTaskDialog({status:'To do'}));
+  // Prefill project if filtered
+  top.querySelector('#addTaskBoard').addEventListener('click', ()=>{
+    const pid = getCurrentProjectId();
+    const init = { status:'To do' };
+    if(pid !== undefined) init.projectId = pid; // undefined means 'all' filter, no prefill
+    openTaskDialog(init);
+  });
 
   const q=(document.getElementById('globalSearch')?.value||'').toLowerCase().trim();
 
@@ -69,8 +76,11 @@ export function renderBoard(){
         moveTaskTo(id,col);
       });
 
+      const pid = state.projectFilter;
       const tasks=(state.tasks||[])
-        .filter(t=>t.status===col && (!q || t.title.toLowerCase().includes(q) || (t.desc||'').toLowerCase().includes(q) || (t.tags||[]).join(' ').toLowerCase().includes(q)))
+        .filter(t=>t.status===col)
+        .filter(t=> pid==='all' ? true : (pid==='none' ? (t.projectId==null) : t.projectId===pid))
+        .filter(t=> !q || t.title.toLowerCase().includes(q) || (t.desc||'').toLowerCase().includes(q) || (t.tags||[]).join(' ').toLowerCase().includes(q))
         .sort((a,b)=> (a.updated||0) < (b.updated||0)?1:-1);
 
       tasks.forEach(t=> dz.appendChild(renderTaskCard(t)));
@@ -81,7 +91,10 @@ export function renderBoard(){
     host.appendChild(grid);
     host.querySelectorAll('[data-add]').forEach(b=> b.addEventListener('click', e=>{
       const col = e.currentTarget.getAttribute('data-add');
-      openTaskDialog({status:col});
+      const pid = getCurrentProjectId();
+      const init = { status:col };
+      if(pid !== undefined) init.projectId = pid;
+      openTaskDialog(init);
     }));
   }else{
     // Agrupar por tag
@@ -114,9 +127,11 @@ export function renderBoard(){
         t.tags=val; t.updated=Date.now(); save(); renderBoard();
       });
 
+      const pid = state.projectFilter;
       const tasks=(state.tasks||[])
-        .filter(t=> ((t.tags&&t.tags.includes(tag)) || (tag==='No tag' && (!t.tags || t.tags.length===0)))
-          && (!q || t.title.toLowerCase().includes(q) || (t.desc||'').toLowerCase().includes(q) || (t.tags||[]).join(' ').toLowerCase().includes(q)))
+        .filter(t=> ((t.tags&&t.tags.includes(tag)) || (tag==='No tag' && (!t.tags || t.tags.length===0))))
+        .filter(t=> pid==='all' ? true : (pid==='none' ? (t.projectId==null) : t.projectId===pid))
+        .filter(t=> !q || t.title.toLowerCase().includes(q) || (t.desc||'').toLowerCase().includes(q) || (t.tags||[]).join(' ').toLowerCase().includes(q))
         .sort((a,b)=> (a.updated||0) < (b.updated||0)?1:-1);
 
       tasks.forEach(t=> dz.appendChild(renderTaskCard(t)));
@@ -127,7 +142,10 @@ export function renderBoard(){
     host.appendChild(grid);
     host.querySelectorAll('[data-addtag]').forEach(b=> b.addEventListener('click', e=>{
       const tag = e.currentTarget.getAttribute('data-addtag');
-      openTaskDialog({status:'To do', tags: tag==='No tag'? [] : [tag]});
+      const pid = getCurrentProjectId();
+      const init = {status:'To do', tags: tag==='No tag'? [] : [tag]};
+      if(pid !== undefined) init.projectId = pid;
+      openTaskDialog(init);
     }));
   }
 }
@@ -144,6 +162,7 @@ export function renderTaskCard(t){
   const totalSubs=(t.subtasks||[]).length;
   const doneSubs=(t.subtasks||[]).filter(st=>st.status===FINAL_STATUS || st.done).length;
 
+  const projectPill = (t.projectId!==undefined) ? `<span class="pill">📁 ${escapeHtml(getProjectNameById(t.projectId))}</span>` : '';
   el.innerHTML = `
     <header>
       <h4 data-open="${t.id}">${escapeHtml(t.title)}</h4>
@@ -157,6 +176,7 @@ export function renderTaskCard(t){
       ${dueText?`<span class="pill ${overdue(t)?'overdue':''}">📅 ${dueText}</span>`:''}
       ${(t.tags||[]).slice(0,3).map(x=>`<span class="pill">#${escapeHtml(x)}</span>`).join('')}
       <span class="pill">🧮 ${displayPoints(t)}pt</span>
+      ${projectPill}
       ${totalSubs?`<span class="pill">☑️ ${doneSubs}/${totalSubs}</span>`:''}
     </div>
     <div class="row-actions"><button class="btn" data-addsub="${t.id}">＋ Sub</button></div>
