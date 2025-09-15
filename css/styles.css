@@ -14,7 +14,22 @@ body{margin:0;background:var(--bg);color:var(--text);font-family: ui-sans-serif,
 header{position:sticky;top:0;background:linear-gradient(180deg, rgba(0,0,0,.08), transparent), var(--bg);backdrop-filter:saturate(1.1) blur(8px);z-index:20}
 .topbar{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--border)}
 .brand{display:flex;align-items:center;gap:10px;font-weight:700}
-.brand .logo{width:28px;height:28px;border-radius:10px;background:linear-gradient(135deg,var(--primary),var(--accent));box-shadow:var(--shadow)}
+.brand .logo{width:28px;height:28px;border-radius:10px;
+  background: radial-gradient(80% 80% at 30% 20%, rgba(255,255,255,.25), transparent 60%),
+              linear-gradient(135deg,var(--primary),var(--accent));
+  display:grid; place-items:center;
+  transition: transform .2s ease;
+}
+/* Neutraliza el pseudo-elemento del logo para no superponer texto */
+.brand .logo::after{
+  content: none !important;
+}
+.brand .logo:hover{ transform: translateY(-1px) scale(1.02) }
+
+.brand .app-name{
+  font-weight:800;
+  letter-spacing:.2px;
+}
 .bar-actions{display:flex;gap:10px;align-items:center}
 .chip{padding:6px 10px;border:1px solid var(--border);border-radius:10px;color:var(--muted);font-size:12px}
 .btn{border:1px solid var(--border);background:var(--panel);color:var(--text);padding:8px 12px;border-radius:12px;cursor:pointer;box-shadow:var(--shadow);font-weight:600}
@@ -209,6 +224,10 @@ input, select, textarea{ padding: var(--pad); border-radius: calc(var(--radius) 
 .start-pill::before{
   content:"Inicio";
   font-weight:600;
+  color:var(--text);
+  margin-right:4px;
+  opacity:.9;
+}
   color:var(--text);
   margin-right:4px;
   opacity:.9;

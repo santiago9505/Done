@@ -79,20 +79,23 @@ function ensureProjectsFromTasks(){
 }
 
 // Seed inicial de proyectos (solo si no hay ninguno)
+// Ajuste: seed solo una vez usando flag persistente didSeedProjects
 function seedDefaultProjects(){
   if(Array.isArray(state.projects) && state.projects.length) return;
+  if(state.didSeedProjects) return; // NUEVO: no volver a sembrar
   state.projects = [
-    { id:'trading-finances', name:'💹 Trading & Finances', color:'#3b82f6', created:Date.now() },
-    { id:'work',              name:'💼 Work',              color:'#8b5cf6', created:Date.now() },
-    { id:'personal-branding', name:'🌟 Personal Branding', color:'#10b981', created:Date.now() },
-    { id:'health-wellness',   name:'🏋️‍♂️ Health & Wellness', color:'#f59e0b', created:Date.now() },
-    { id:'family-personal',   name:'👨‍👩‍👧‍👦 Family & Personal', color:'#ef4444', created:Date.now() },
+    { id:'trading-finances', name:'💹 Trading & Finances', color:'#3b82f6', created:Date.now(), emoji:'💸' },
+    { id:'work',              name:'💼 Work',              color:'#8b5cf6', created:Date.now(), emoji:'💼' },
+    { id:'personal-branding', name:'🌟 Personal Branding', color:'#10b981', created:Date.now(), emoji:'✨' },
+    { id:'health-wellness',   name:'🏋️‍♂️ Health & Wellness', color:'#f59e0b', created:Date.now(), emoji:'🏋️' },
+    { id:'family-personal',   name:'👨‍👩‍👧‍👦 Family & Personal', color:'#ef4444', created:Date.now(), emoji:'👨‍👩‍👧' },
   ];
+  state.didSeedProjects = true; // NUEVO
   save();
 }
 
 export function renderTasksList(){
-  seedDefaultProjects();      // NUEVO
+  seedDefaultProjects();      // se mantiene pero ahora es one-time por el flag
   ensureProjectsFromTasks();  // existente (ahora después del seed)
   const host = document.getElementById('view-tasks'); if(!host) return;
   normalizeAllTaskTimeRanges(); // NUEVO: garantiza datos consistentes antes de render

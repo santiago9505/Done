@@ -27,83 +27,233 @@ function ensureEmoji(p){
   return p.emoji='📁';
 }
 
+/* ========== Export/Import (incluye proyectos, tareas y subtareas) ========== */
+function deepClone(obj){ return JSON.parse(JSON.stringify(obj||{})); }
+
+function getExportSnapshot(){
+  return {
+    projects: deepClone(state.projects||[]),
+    tasks: deepClone(state.tasks||[]),
+    docs: deepClone(state.docs||[]),
+    settings: deepClone(state.settings||{}),
+    columns: deepClone(state.columns||[]),
+    streak: state.streak||0,
+    lastDayClosed: state.lastDayClosed||null,
+    projectFilter: state.projectFilter ?? 'all',
+    groupTasks: state.groupTasks || 'none'
+  };
+}
+
+function exportAllData(){
+  const payload = { app:'Clickap', kind:'full-backup', version:1, exportedAt:new Date().toISOString(), state:getExportSnapshot() };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type:'application/json' });
+  const a = document.createElement('a');
+  const d = new Date(), pad = n=>String(n).padStart(2,'0');
+  a.download = `clickap-backup-${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.json`;
+  a.href = URL.createObjectURL(blob);
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function normalizeImportedState(incoming){
+  if(!Array.isArray(incoming.projects)) incoming.projects = [];
+  if(!Array.isArray(incoming.tasks)) incoming.tasks = [];
+  if(!Array.isArray(incoming.docs)) incoming.docs = [];
+  if(!Array.isArray(incoming.columns)) incoming.columns = ['To do','In progress','Done'];
+  if(typeof incoming.settings!=='object' || !incoming.settings) incoming.settings = {};
+  incoming.projects.forEach(ensureEmoji);
+  incoming.tasks.forEach(t=>{
+    if(!t.id) t.id = uid();
+    if(!Array.isArray(t.subtasks)) t.subtasks = [];
+    t.subtasks.forEach(st=>{ if(!st.id) st.id = uid(); });
+  });
+  return incoming;
+}
+
+async function importAllDataFromFile(file){
+  const text = await file.text();
+  let parsed;
+  try{ parsed = JSON.parse(text); }catch{ alert('Archivo inválido'); return; }
+  const incomingRaw = parsed?.state && typeof parsed.state==='object' ? parsed.state : parsed;
+  if(!incomingRaw || typeof incomingRaw!=='object'){ alert('Contenido inválido'); return; }
+  const incoming = normalizeImportedState(incomingRaw);
+  Object.assign(state, {
+    projects: incoming.projects,
+    tasks: incoming.tasks,
+    docs: incoming.docs,
+    settings: incoming.settings,
+    columns: incoming.columns,
+    streak: incoming.streak||0,
+    lastDayClosed: incoming.lastDayClosed||null,
+    projectFilter: incoming.projectFilter ?? 'all',
+    groupTasks: incoming.groupTasks || 'none'
+  });
+  save();
+  renderProjectsSidebar(); renderBoard(); renderTasksList(); renderHome();
+}
+
+/* ========== Emoji picker ========== */
+const EMOJI_SET = [
+  '📁','⭐','✨','🌟','🔥','✅','🗓️','🧠','💡','📝','📌','📎','⏰','🕒','📈','📉','💹','💰','🏦','💼',
+  '🛠️','🧪','🧰','🎯','🚀','🧭','⚙️','🔧','🔩','🧷',
+  '🏋️','🏃','🧘','🚴','🥗','🍎','💧','🛌','🩺','💊',
+  '👨‍👩‍👧','🏠','📚','🎓','🖥️','📱','🖊️','📖','🗃️','🗂️',
+  '🎨','🎵','🎬','📷','🧳','✈️','🌍','💬','📣','🤝',
+  '🐞','🔒','🧩','🔬','🧫','🔭','🧮','🧑‍🍳','🍽️'
+];
+
+function showEmojiPicker(anchorEl, projectId){
+  let picker = document.getElementById('emojiPicker');
+  if(!picker){
+    picker = document.createElement('div');
+    picker.id = 'emojiPicker';
+    picker.style.cssText = 'position:fixed;z-index:10000;background:var(--panel);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);padding:8px;max-width:320px;max-height:260px;overflow:auto;display:grid;grid-template-columns:repeat(10,1fr);gap:6px';
+    document.body.appendChild(picker);
+    document.addEventListener('click', (e)=>{ if(picker && !picker.contains(e.target) && e.target!==anchorEl) picker.style.display='none'; });
+  }
+  picker.innerHTML = EMOJI_SET.map(e=>`<button data-emo="${e}" style="font-size:18px;border:none;background:transparent;cursor:pointer;line-height:1.2">${e}</button>`).join('');
+  picker.querySelectorAll('[data-emo]').forEach(btn=>{
+    btn.onclick = ()=>{
+      const emo = btn.getAttribute('data-emo');
+      const p = (state.projects||[]).find(x=>x.id===projectId);
+      if(p){ p.emoji = emo; save(); renderProjectsSidebar(); renderBoard(); renderTasksList(); renderHome(); }
+      picker.style.display='none';
+    };
+  });
+  const r = anchorEl.getBoundingClientRect();
+  picker.style.left = Math.min(window.innerWidth-340, Math.max(8, r.left)) + 'px';
+  picker.style.top  = Math.min(window.innerHeight-280, Math.max(8, r.bottom+6)) + 'px';
+  picker.style.display = 'grid';
+}
+
+/* ========== Render sidebar ========== */
 function renderList(host){
-  const q=(document.getElementById('globalSearch')?.value||'').toLowerCase().trim();
   const list = (state.projects||[]).map(p=>{ ensureEmoji(p); if(typeof p.favorite==='undefined') p.favorite=false; if(typeof p.sort==='undefined') p.sort=0; return p; });
   const favs = list.filter(p=>p.favorite).sort((a,b)=> (a.sort||0)-(b.sort||0));
   const others = list.filter(p=>!p.favorite).sort((a,b)=> a.name.localeCompare(b.name));
+
   host.querySelector('.proj-list').innerHTML = `
     <div class="proj ${state.projectFilter==='all'?'active':''}" data-sel="all"><span class="name">Todos</span></div>
     <div class="proj ${state.projectFilter==='none'?'active':''}" data-sel="none"><span class="name">Sin proyecto</span></div>
     <div style="margin:6px 0;color:var(--muted);font-size:12px">Favoritos</div>
-    <div class="fav-zone">${favs.map(p=>`
-      <div class="proj ${state.projectFilter===p.id?'active':''}" draggable="true" data-id="${p.id}" data-sel="${p.id}">
-        <span>${p.emoji||'📁'}</span><span class="name">${stripEmojiPrefix(p.name||'')}</span>
-        <span class="x" data-star="${p.id}" title="Quitar de favoritos">★</span>
-      </div>`).join('')}
+    <div class="fav-zone">
+      ${favs.map(p=>`
+        <div class="proj ${state.projectFilter===p.id?'active':''}" draggable="true" data-id="${p.id}" data-sel="${p.id}">
+          <span class="emoji" data-emoji-edit="${p.id}" title="Cambiar emoji">${p.emoji||'📁'}</span>
+          <span class="name">${stripEmojiPrefix(p.name||'')}</span>
+          <span class="x" data-star="${p.id}" title="Quitar de favoritos">★</span>
+        </div>`).join('')}
       ${!favs.length?'<div style="color:var(--muted);font-size:12px">Arrastra aquí</div>':''}
     </div>
     <details open>
       <summary style="cursor:pointer;color:var(--muted);font-size:12px">Todos</summary>
-      ${others.map(p=>`<div class="proj ${state.projectFilter===p.id?'active':''}" data-sel="${p.id}">
-          <span>${p.emoji||'📁'}</span><span class="name">${stripEmojiPrefix(p.name||'')}</span>
+      ${others.map(p=>`
+        <div class="proj ${state.projectFilter===p.id?'active':''}" data-sel="${p.id}">
+          <span class="emoji" data-emoji-edit="${p.id}" title="Cambiar emoji">${p.emoji||'📁'}</span>
+          <span class="name">${stripEmojiPrefix(p.name||'')}</span>
           <span class="x" data-star="${p.id}" title="Añadir a favoritos">☆</span>
           <span class="x" data-del="${p.id}" title="Eliminar">×</span>
         </div>`).join('')}
     </details>
   `;
 
-  host.querySelectorAll('[data-sel]').forEach(el=> el.addEventListener('click', (e)=>{
+  // Selección
+  host.querySelectorAll('[data-sel]').forEach(el=> el.addEventListener('click', ()=>{
     const val = el.getAttribute('data-sel');
     state.projectFilter = val==='all'? 'all' : (val==='none'? 'none' : val);
-    save();
-  renderBoard(); renderTasksList(); renderHome();
-    // volver a pintar para refrescar active
-    renderProjectsSidebar();
+    save(); renderBoard(); renderTasksList(); renderHome(); renderProjectsSidebar();
   }));
+
+  // Eliminar
   host.querySelectorAll('[data-del]').forEach(el=> el.addEventListener('click', (e)=>{
     e.stopPropagation();
     const id = el.getAttribute('data-del');
     if(!confirm('¿Eliminar proyecto y desasignar sus tareas?')) return;
     state.projects = (state.projects||[]).filter(p=>p.id!==id);
-    // Desasignar tareas del proyecto eliminado
     (state.tasks||[]).forEach(t=>{ if(t.projectId===id) t.projectId = null; });
     if(state.projectFilter===id) state.projectFilter='all';
-    save();
-  renderBoard(); renderTasksList(); renderHome();
-    renderProjectsSidebar();
+    save(); renderBoard(); renderTasksList(); renderHome(); renderProjectsSidebar();
   }));
-  // Star/unstar
+
+  // Favoritos
   host.querySelectorAll('[data-star]').forEach(el=> el.addEventListener('click', (e)=>{
     e.stopPropagation();
     const id=el.getAttribute('data-star');
     const p=(state.projects||[]).find(x=>x.id===id); if(!p) return;
-    if(!p.favorite){
-      const count = (state.projects||[]).filter(pp=>pp.favorite).length;
-      if(count>=5){ alert('Máximo 5 favoritos'); return; }
-      p.favorite = true;
-    }else{
-      p.favorite = false;
-    }
+    p.favorite = !p.favorite;
     if(p.favorite){ p.sort = Math.max(0, ...state.projects.map(pp=>pp.sort||0))+1; }
     save(); renderProjectsSidebar();
   }));
-  // Drag & drop dentro de fav-zone
+
+  // Drag & drop en favoritos
   const zone = host.querySelector('.fav-zone');
   let dragId=null;
   zone?.querySelectorAll('[draggable]')?.forEach(el=>{
     el.addEventListener('dragstart', ()=>{ dragId = el.getAttribute('data-id'); });
-    el.addEventListener('dragover', (e)=>{ e.preventDefault(); });
+    el.addEventListener('dragover', (e)=> e.preventDefault());
     el.addEventListener('drop', (e)=>{
-      e.preventDefault(); const targetId = el.getAttribute('data-id'); if(!dragId||!targetId||dragId===targetId) return;
-      const favs = (state.projects||[]).filter(p=>p.favorite).sort((a,b)=> (a.sort||0)-(b.sort||0));
-      const order = favs.map(p=>p.id);
-      const from = order.indexOf(dragId); const to = order.indexOf(targetId);
+      e.preventDefault();
+      const targetId = el.getAttribute('data-id');
+      if(!dragId||!targetId||dragId===targetId) return;
+      const favsNow = (state.projects||[]).filter(p=>p.favorite).sort((a,b)=> (a.sort||0)-(b.sort||0));
+      const order = favsNow.map(p=>p.id);
+      const from = order.indexOf(dragId), to = order.indexOf(targetId);
       if(from>-1 && to>-1){ order.splice(to,0, order.splice(from,1)[0]); }
       (state.projects||[]).forEach(p=>{ if(p.favorite){ p.sort = order.indexOf(p.id); } });
       save(); renderProjectsSidebar();
     });
   });
+
+  // Emoji picker
+  host.querySelectorAll('[data-emoji-edit]').forEach(el=>{
+    el.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      const pid = el.getAttribute('data-emoji-edit');
+      showEmojiPicker(el, pid);
+    });
+  });
+}
+
+// Solo título y nombre; no crear elementos nuevos
+function enforceAppTitleOnly(){
+  document.title = 'Done';
+  const brand = document.querySelector('.topbar .brand') || document.querySelector('header .brand') || document.querySelector('.brand');
+  if(!brand) return;
+  // Quita el extra que pudimos haber agregado
+  brand.querySelector('.app-name')?.remove();
+  // Reemplaza texto "Clickap" por "Done" en nodos de texto y spans simples
+  brand.childNodes.forEach(n=>{
+    if(n.nodeType===Node.TEXT_NODE && /clickap/i.test(n.nodeValue||'')){
+      n.nodeValue = (n.nodeValue||'').replace(/clickap/ig,'Done');
+    }
+  });
+  brand.querySelectorAll('span, b, strong, h1, h2').forEach(el=>{
+    if(el.children.length===0 && /clickap/i.test(el.textContent||'')){
+      el.textContent = el.textContent.replace(/clickap/ig,'Done');
+    }
+  });
+}
+
+// Inserta/actualiza el brand en el header y fija el título del documento
+function ensureAppBrand(){
+  try{
+    document.title = 'Done';
+    const header = document.querySelector('header .brand') || document.querySelector('.topbar .brand') || document.querySelector('.brand');
+    if(!header) return;
+    let logo = header.querySelector('.logo');
+    if(!logo){
+      logo = document.createElement('div');
+      logo.className = 'logo';
+      header.prepend(logo);
+    }
+    let name = header.querySelector('.app-name');
+    if(!name){
+      name = document.createElement('span');
+      name.className = 'app-name';
+      header.appendChild(name);
+    }
+    name.textContent = 'Done';
+  }catch{}
 }
 
 export function renderProjectsSidebar(){
@@ -115,21 +265,36 @@ export function renderProjectsSidebar(){
       <input id="pjName" placeholder="Nuevo proyecto…"/>
       <button class="btn" id="pjAdd">Añadir</button>
     </div>
+    <div class="r" style="margin-top:8px">
+      <button class="btn" id="pjExport">Exportar</button>
+      <button class="btn" id="pjImport">Importar</button>
+      <input type="file" id="pjImportFile" accept="application/json" style="display:none"/>
+    </div>
   `;
   renderList(host);
+  enforceAppTitleOnly(); // asegurar "Done" sin agregar elementos nuevos
 
+  // Añadir
   host.querySelector('#pjAdd').addEventListener('click', ()=>{
     const inp = host.querySelector('#pjName');
     const name = (inp.value||'').trim(); if(!name){ inp.focus(); return; }
-    const p={id:uid(), name, emoji:'', favorite:false, sort:(state.projects||[]).length}; ensureEmoji(p);
-    (state.projects|| (state.projects=[])).push(p);
+    const p={id:uid(), name, emoji:'', favorite:false, sort:(state.projects||[]).length};
+    ensureEmoji(p);
+    (state.projects || (state.projects=[])).push(p);
     save(); inp.value='';
     renderProjectsSidebar();
   });
+
+  // Exportar / Importar
+  host.querySelector('#pjExport').addEventListener('click', exportAllData);
+  const importBtn = host.querySelector('#pjImport');
+  const importFile = host.querySelector('#pjImportFile');
+  importBtn.addEventListener('click', ()=> importFile.click());
+  importFile.addEventListener('change', (e)=>{ const f=e.target.files && e.target.files[0]; if(f) importAllDataFromFile(f); e.target.value=''; });
 }
 
 export function getCurrentProjectId(){
-  if(state.projectFilter==='all') return undefined; // no preselección
+  if(state.projectFilter==='all') return undefined;
   if(state.projectFilter==='none') return null;
   return state.projectFilter;
 }
