@@ -7,6 +7,7 @@ import { handleRecurrence } from '../logic/recurrence.js';
 import { renderBoard } from './board.js';
 import { renderTasksList } from './tasks.js';
 import { showMega } from '../core/mega.js';
+import { refresh } from '../core/bus.js';
 
 function tagBoxHtml(tags){ 
   return `<div class="tagbox" id="t-tagbox">
@@ -143,7 +144,7 @@ export function openTaskDialog(init){
         const idx=p.subtasks.findIndex(s=>s.id===t.id);
         const newSt={id:t.id,title:t.title,desc:t.desc||'',done:(t.status===FINAL_STATUS),status:t.status,points:t.points,due:t.due};
         if(idx>=0) p.subtasks[idx]=newSt; else p.subtasks.push(newSt);
-        p.points=subPoints(p); p.updated=Date.now(); save(); renderBoard(); renderTasksList();
+        p.points=subPoints(p); p.updated=Date.now(); save(); renderBoard(); renderTasksList(); refresh.home();
       }
       dlg.close(); return;
     }
@@ -151,14 +152,14 @@ export function openTaskDialog(init){
     t.updated = Date.now();
     if(isNew){ (state.tasks||[]).push(t); save(); addXP(XP_CREATE); toast('Tarea creada'); }
     else{ const idx = state.tasks.findIndex(x=>x.id===t.id); if(idx>=0) state.tasks[idx]=t; save(); toast('Tarea guardada'); }
-    dlg.close(); renderBoard(); renderTasksList();
+    dlg.close(); renderBoard(); renderTasksList(); refresh.home();
   });
 
   dlg.querySelector('#t-delete')?.addEventListener('click',(e)=>{
     e.preventDefault(); if(!confirm('¿Eliminar?')) return;
     if(isSub){ const p=findTask(t.parentId); p.subtasks=p.subtasks.filter(s=>s.id!==t.id); p.points=subPoints(p); p.updated=Date.now(); save(); }
     else { state.tasks = (state.tasks||[]).filter(x=>x.id!==t.id); save(); }
-    dlg.close(); renderBoard(); renderTasksList(); toast('Eliminada');
+    dlg.close(); renderBoard(); renderTasksList(); refresh.home(); toast('Eliminada');
   });
 
   dlg.querySelector('#t-cancel').addEventListener('click',()=> dlg.close());
@@ -179,7 +180,7 @@ export function closeTask(id){
 
   addXP(XP_CLOSE); showMega(randomKillLine());
   try{ handleRecurrence(t); }catch{}
-  renderBoard(); renderTasksList();
+  renderBoard(); renderTasksList(); refresh.home();
 }
 
 function toast(msg){ 

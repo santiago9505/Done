@@ -6,7 +6,7 @@ import {
   subPoints, displayPoints,
   toLocalDatetimeInput, parseLocalDatetimeInput
 } from '../core/utils.js';
-import { refresh } from '../core/bus.js';
+import { refresh as busRefresh } from '../core/bus.js';
 import { closeTask, openTaskDialog } from './dialog.js';
 import { showMega } from '../core/mega.js';
 import { randomKillLine } from '../core/humor.js';
@@ -227,7 +227,7 @@ function renderSubtaskRow(parent, st){
     parent.points = subPoints(parent);
     save();
     renderBoard();
-    refresh.home();
+  busRefresh.home();
 
     // 🎉 Efectos al completar subtarea
     if (chk.checked) {
@@ -250,12 +250,14 @@ function renderSubtaskRow(parent, st){
     save();
     // refrescamos card para que se vea el total actualizado
     renderBoard();
+  busRefresh.home();
   });
 
   dueEl.addEventListener('change', ()=>{
     st.due = dueEl.value ? parseLocalDatetimeInput(dueEl.value) : null;
     parent.updated=Date.now();
     save();
+  busRefresh.home();
   });
 
   // Abrir subtarea como "tarea" (usa el editor con isSub)
@@ -285,5 +287,5 @@ function moveTaskTo(id,col){
   t.updated = Date.now();
   save();
   renderBoard();
-  refresh.home();
+  busRefresh.home();
 }

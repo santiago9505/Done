@@ -29,8 +29,8 @@ export function wireToolbar(){
       docIds: [], points: 1, subtasks: [],
       recur: {type:'none', every:1, trigger:'complete', skipWeekends:false, createNew:true, forever:true, nextStatus:'To do'}
     };
-    state.tasks.push(t); save(); addXP(XP_CREATE); if(input) input.value='';
-    renderBoard(); renderHome();
+  state.tasks.push(t); save(); addXP(XP_CREATE); if(input) input.value='';
+  renderBoard(); renderHome();
   });
 
   document.getElementById('btnNewTask')?.addEventListener('click', ()=>{

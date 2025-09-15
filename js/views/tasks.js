@@ -13,6 +13,7 @@ import { renderBoard } from './board.js';
 import { showMega } from '../core/mega.js';
 import { randomKillLine } from '../core/humor.js';
 import { confettiBurst, successSound } from '../core/effects.js';
+import { refresh } from '../core/bus.js';
 
 export function renderTasksList(){
   const host = document.getElementById('view-tasks'); if(!host) return;
@@ -52,54 +53,65 @@ export function renderTasksList(){
     openTaskDialog(init);
   });
 
-  function cellHtml(c,t){
+  function cellHtml(c,t,st){
+    const isSub = !!st;
     switch(c){
-      case 'title':
-        return `<td data-open="${t.id}" style="cursor:pointer;text-decoration:underline;padding:8px;border-bottom:1px solid var(--border)">${escapeHtml(t.title)}</td>`;
-      case 'status':
-        return `<td style="padding:8px;border-bottom:1px solid var(--border)">
-          <select data-field="status">${state.columns.map(x=>`<option ${t.status===x?'selected':''}>${x}</option>`).join('')}</select>
-        </td>`;
-      case 'project':
-        return `<td style="padding:8px;border-bottom:1px solid var(--border)">${escapeHtml(getProjectNameById(t.projectId))}</td>`;
-      case 'prio':
-        return `<td style="padding:8px;border-bottom:1px solid var(--border)">
-          <select data-field="prio">
-            <option ${t.prio==='Low'?'selected':''}>Low</option>
-            <option ${t.prio==='Med'?'selected':''}>Med</option>
-            <option ${t.prio==='High'?'selected':''}>High</option>
-          </select>
-        </td>`;
-      case 'due':
-        return `<td style="padding:8px;border-bottom:1px solid var(--border)">
-          <input type="datetime-local" data-field="due" value="${t.due ? toLocalDatetimeInput(t.due) : ''}"/>
-        </td>`;
-      case 'tags':
-        return `<td style="padding:8px;border-bottom:1px solid var(--border)">${(t.tags||[]).map(x=>'<span class="tag">#'+escapeHtml(x)+'</span>').join('')}</td>`;
-      case 'points':
-        return `<td style="padding:8px;border-bottom:1px solid var(--border)">
-          <input type="number" min="0" step="1" data-field="points" value="${t.points||0}" style="width:80px" ${(t.subtasks&&t.subtasks.length)?'disabled title="Sumado desde subtareas"':''}/>
-        </td>`;
-      default:
-        return `<td style="padding:8px;border-bottom:1px solid var(--border)"></td>`;
-    }
+          case 'title':{
+            const base = 'padding:8px;border-bottom:1px solid var(--border)';
+            if(isSub){
+              return `<td data-open-sub="${t.id}:${st.id}" style="${base};padding-left:24px;cursor:pointer;text-decoration:underline">${escapeHtml(st.title)}</td>`;
+            }
+            return `<td data-open="${t.id}" style="${base};cursor:pointer;text-decoration:underline">${escapeHtml(t.title)}</td>`;
+          }
+          case 'status':{
+            const val = isSub ? (st.status || (st.done?FINAL_STATUS:'To do')) : t.status;
+            const dataSub = isSub ? `data-sub="${t.id}:${st.id}"` : '';
+            return `<td style="padding:8px;border-bottom:1px solid var(--border)">
+              <select data-field="status" ${dataSub}>${state.columns.map(x=>`<option ${val===x?'selected':''}>${x}</option>`).join('')}</select>
+            </td>`;
+          }
+          case 'project':{
+            return `<td style="padding:8px;border-bottom:1px solid var(--border)">${escapeHtml(getProjectNameById(t.projectId))}</td>`;
+          }
+          case 'prio':{
+            if(isSub){
+              return `<td style="padding:8px;border-bottom:1px solid var(--border)"><span class="chip">${t.prio||'Med'}</span></td>`;
+            }
+            return `<td style="padding:8px;border-bottom:1px solid var(--border)">
+              <select data-field="prio">
+                <option ${t.prio==='Low'?'selected':''}>Low</option>
+                <option ${t.prio==='Med'?'selected':''}>Med</option>
+                <option ${t.prio==='High'?'selected':''}>High</option>
+              </select>
+            </td>`;
+          }
+          case 'due':{
+            const val = isSub ? (st.due||null) : (t.due||null);
+            const dataSub = isSub ? `data-sub="${t.id}:${st.id}"` : '';
+            return `<td style="padding:8px;border-bottom:1px solid var(--border)">
+              <input type="datetime-local" data-field="due" ${dataSub} value="${val ? toLocalDatetimeInput(val) : ''}"/>
+            </td>`;
+          }
+          case 'tags':{
+            const tags = (t.tags||[]);
+            return `<td style="padding:8px;border-bottom:1px solid var(--border)">${tags.map(x=>'<span class="tag">#'+escapeHtml(x)+'</span>').join('')}</td>`;
+          }
+          case 'points':{
+            const canEditParent = !(t.subtasks&&t.subtasks.length);
+            const value = isSub ? (st.points||0) : (t.points||0);
+            const dataSub = isSub ? `data-sub="${t.id}:${st.id}"` : '';
+            const disabled = isSub ? '' : (canEditParent? '' : 'disabled title="Sumado desde subtareas"');
+            return `<td style="padding:8px;border-bottom:1px solid var(--border)">
+              <input type="number" min="0" step="1" data-field="points" ${dataSub} value="${value}" style="width:80px" ${disabled}/>
+            </td>`;
+          }
+          default:
+            return `<td style="padding:8px;border-bottom:1px solid var(--border)"></td>`;
+        }
   }
 
   function renderSubTable(t){
-    if(!t.subtasks || !t.subtasks.length){
-      return `<details><summary style="color:var(--muted)">Subtareas</summary><div style="color:var(--muted);padding:6px 0">Sin subtareas</div></details>`;
-    }
-    const doneCount = t.subtasks.filter(s=>s.done||s.status===FINAL_STATUS).length;
-    return `<details><summary>Subtareas (${doneCount}/${t.subtasks.length})</summary>
-      <div style="padding:6px 0;display:grid;gap:6px">
-        ${t.subtasks.map(st=>`<div class="sub-row">
-          <input type="checkbox" ${st.done||st.status===FINAL_STATUS?'checked':''} data-stcheck="${t.id}:${st.id}"/>
-          <span data-open-sub="${t.id}:${st.id}" style="cursor:pointer;text-decoration:underline">${escapeHtml(st.title)}</span>
-          <span class="chip">${st.points||0}pt</span>
-          ${st.due?`<span class="chip">${fmtDateTime(st.due)}</span>`:''}
-        </div>`).join('')}
-      </div>
-    </details>`;
+    // Subtareas se mostrarán como filas completas debajo de su tarea
   }
 
   function tableFor(list){
@@ -107,12 +119,19 @@ export function renderTasksList(){
       <table class="grid" style="width:100%">
         <thead><tr>${cols.map(c=>`<th style="text-align:left;padding:8px;border-bottom:1px solid var(--border)">${labels[c]||c}</th>`).join('')}<th style="width:80px"></th></tr></thead>
         <tbody>
-          ${list.map(t=>`<tr data-id="${t.id}">
-            ${cols.map(c=>cellHtml(c,t)).join('')}
-            <td style="padding:8px;border-bottom:1px solid var(--border)"><button class="btn ghost" data-addsub="${t.id}" title="Añadir subtarea">＋</button></td>
-          </tr>
-          <tr><td colspan="${cols.length+1}" style="padding:0 8px 8px 24px;border-bottom:1px solid var(--border)">${renderSubTable(t)}</td></tr>
-          `).join('')}
+          ${list.map(t=>{
+            const taskRow = `<tr data-id="${t.id}">
+              ${cols.map(c=>cellHtml(c,t,null)).join('')}
+              <td style="padding:8px;border-bottom:1px solid var(--border)"><button class="btn ghost" data-addsub="${t.id}" title="Añadir subtarea">＋</button></td>
+            </tr>`;
+            const subRows = (t.subtasks||[]).map(st=>`
+              <tr data-id="${t.id}" data-sub="${t.id}:${st.id}">
+                ${cols.map(c=>cellHtml(c,t,st)).join('')}
+                <td style="padding:8px;border-bottom:1px solid var(--border)"></td>
+              </tr>
+            `).join('');
+            return taskRow + subRows;
+          }).join('')}
         </tbody>
       </table>
     </div>`;
@@ -142,6 +161,23 @@ export function renderTasksList(){
     el.addEventListener('change', ()=>{
       const row = el.closest('tr'); if(!row) return;
       const id = row.dataset.id; const t = (state.tasks||[]).find(x=>x.id===id); const f = el.dataset.field; if(!t) return;
+      const sub = el.getAttribute('data-sub');
+
+      if(sub){
+        const [tid,sid]=sub.split(':'); if(tid!==t.id) return;
+        const st=t.subtasks.find(s=>s.id===sid); if(!st) return;
+        if(f==='status'){
+          const wasDone = st.status===FINAL_STATUS || st.done;
+          st.status = el.value;
+          st.done = (el.value===FINAL_STATUS);
+          if(!wasDone && st.done){ showMega(randomKillLine()); confettiBurst(); successSound(); }
+        }
+        if(f==='due') st.due = el.value ? parseLocalDatetimeInput(el.value) : null;
+        if(f==='points') st.points = parseInt(el.value||'0',10);
+        t.points = subPoints(t);
+        t.updated=Date.now(); save(); renderBoard(); renderTasksList(); refresh.home();
+        return;
+      }
 
       if(f==='status'){
         t.status = el.value;
@@ -152,30 +188,11 @@ export function renderTasksList(){
       if(f==='due'){ t.due = el.value ? parseLocalDatetimeInput(el.value) : null; }
       if(f==='points'){ t.points = parseInt(el.value||'0',10); }
 
-      t.updated=Date.now(); save(); renderBoard(); renderTasksList();
+      t.updated=Date.now(); save(); renderBoard(); renderTasksList(); refresh.home();
     });
   });
 
-  // Checkbox de subtareas
-  host.querySelectorAll('[data-stcheck]').forEach(ch=> ch.addEventListener('change', (e)=>{
-    const [tid,sid]=e.target.dataset.stcheck.split(':');
-    const t=(state.tasks||[]).find(x=>x.id===tid); if(!t) return;
-    const st=t.subtasks.find(x=>x.id===sid); if(!st) return;
-
-    st.done = e.target.checked;
-    st.status = st.done ? FINAL_STATUS : 'To do';
-    t.points = subPoints(t);
-    t.updated = Date.now();
-    save();
-    renderTasksList();
-    renderBoard();
-
-    if (st.done) { 
-      showMega(randomKillLine());
-      confettiBurst();
-      successSound();
-    }
-  }));
+  // (Eliminado) Checkbox de subtareas: ahora se editan como filas completas
 
   // Abrir subtarea como tarea
   host.querySelectorAll('[data-open-sub]').forEach(el=> el.addEventListener('click', ()=>{
