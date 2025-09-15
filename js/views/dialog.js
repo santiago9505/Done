@@ -9,6 +9,12 @@ import { renderTasksList } from './tasks.js';
 import { showMega } from '../core/mega.js';
 import { refresh } from '../core/bus.js';
 
+// Quita prefijos no alfanuméricos (emojis/símbolos) para evitar doble emoji fuera del sidebar
+function stripEmojiPrefix(txt){
+  if(!txt) return '';
+  return txt.replace(/^[^\p{L}\p{N}]+/u, '').trimStart();
+}
+
 function tagBoxHtml(tags){ 
   return `<div class="tagbox" id="t-tagbox">
     ${(tags||[]).map(x=>`<span class="tag">#${escapeHtml(x)} <span class="x" data-del="${escapeAttr(x)}">×</span></span>`).join('')}
@@ -34,6 +40,8 @@ export function openTaskDialog(init){
     recur:{type:'none',every:1,trigger:'complete',skipWeekends:false,createNew:true,forever:true,nextStatus:'To do', last:null}
   }, init);
 
+  const projectDisplayName = stripEmojiPrefix(getProjectNameById(t.projectId));
+
   const dlg = document.getElementById('taskDialog');
   dlg.innerHTML = `
     <form class="sheet" method="dialog" style="padding:16px 16px 10px 16px">
@@ -42,7 +50,7 @@ export function openTaskDialog(init){
         <div class="meta-bar">
           <span class="chip">Estado: ${t.status}</span>
           ${t.due?`<span class="chip">Vence: ${fmtDateTime(t.due)}</span>`:''}
-          <span class="chip">Proyecto: ${escapeHtml(getProjectNameById(t.projectId))}</span>
+          <span class="chip">Proyecto: ${escapeHtml(projectDisplayName)}</span>
           <span class="chip">Points: ${displayPoints(t)}</span>
         </div>
         <label>Título</label>
@@ -56,12 +64,13 @@ export function openTaskDialog(init){
               <label>Proyecto</label>
               <select id="t-project" style="width:100%">
                 <option value="" ${t.projectId==null?'selected':''}>Sin proyecto</option>
-                ${(state.projects||[]).map(p=>`<option value="${p.id}" ${t.projectId===p.id?'selected':''}>${escapeHtml(p.name)}</option>`).join('')}
+                ${(state.projects||[]).map(p=>`<option value="${p.id}" ${t.projectId===p.id?'selected':''}>${escapeHtml(stripEmojiPrefix(p.name||''))}</option>`).join('')}
               </select>
             </div>
             <div></div>
           </div>`}
         <div class="inline-grid" style="margin-top:8px">
+          <div><label>Inicio</label><input id="t-startAt" type="datetime-local" value="${t.startAt ? toLocalDatetimeInput(t.startAt) : ''}" style="width:100%"/></div>
           <div><label>Vence</label><input id="t-due" type="datetime-local" value="${t.due ? toLocalDatetimeInput(t.due) : ''}" style="width:100%"/></div>
           <div><label>Points</label><input id="t-points" type="number" min="0" step="1" value="${t.points||0}" style="width:100%" ${(t.subtasks&&t.subtasks.length && !isSub)?'disabled title="Sumado desde subtareas"':''}/></div>
         </div>
@@ -110,6 +119,11 @@ export function openTaskDialog(init){
     t.title = title;
     t.status = dlg.querySelector('#t-status').value;
     t.prio   = dlg.querySelector('#t-prio').value;
+
+    // NUEVO: guardar Inicio (startAt)
+    const startVal = dlg.querySelector('#t-startAt').value;
+    t.startAt = startVal ? parseLocalDatetimeInput(startVal) : null;
+
     const dueVal = dlg.querySelector('#t-due').value; t.due = dueVal ? parseLocalDatetimeInput(dueVal) : null;
     t.points = parseInt(dlg.querySelector('#t-points').value||'0',10);
     t.desc   = dlg.querySelector('#t-desc').value;
@@ -188,6 +202,6 @@ function toast(msg){
   t.textContent=msg; 
   t.style.cssText='position:fixed;bottom:16px;right:16px;background:var(--panel);border:1px solid var(--border);box-shadow:var(--shadow);padding:10px 14px;border-radius:12px;z-index:99999;max-width:360px'; 
   document.body.appendChild(t); 
-  setTimeout(()=>{t.style.opacity='0'; t.style.transform='translateY(6px)'; t.style.transition='all .3s'}, 2000); 
-  setTimeout(()=>t.remove(), 2500); 
+  setTimeout(()=>{ t.style.opacity='0'; t.style.transform='translateY(6px)'; t.style.transition='all .3s' }, 2000); 
+  setTimeout(()=> t.remove(), 2500); 
 }

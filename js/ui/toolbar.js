@@ -20,6 +20,16 @@ export function wireToolbar(){
     const input = document.getElementById('quickTitle');
     const v = (input?.value || '').trim();
     if(!v){ toast('Escribe un título'); input?.focus(); return; }
+    // AI-lite: sugerir tag primaria
+    const suggestTag=(txt)=>{
+      const s=txt.toLowerCase();
+      if(/gym|salud|dieta|health/.test(s)) return 'Health';
+      if(/video|edici[oó]n|thumbnail|branding/.test(s)) return 'Branding';
+      if(/broker|trade|setup|trading/.test(s)) return 'Trading';
+      if(/familia|family/.test(s)) return 'Family';
+      if(/work|trabajo|client/.test(s)) return 'Work';
+      return null;
+    };
     const pid = getCurrentProjectId();
     const t = {
       id: uid(), title: v, desc: '', prio: 'Med', due: null, tags: [],
@@ -29,6 +39,7 @@ export function wireToolbar(){
       docIds: [], points: 1, subtasks: [],
       recur: {type:'none', every:1, trigger:'complete', skipWeekends:false, createNew:true, forever:true, nextStatus:'To do'}
     };
+    const tg = suggestTag(v); if(tg) t.tags=[tg.toLowerCase()];
   state.tasks.push(t); save(); addXP(XP_CREATE); if(input) input.value='';
   renderBoard(); renderHome();
   });
@@ -43,6 +54,12 @@ export function wireToolbar(){
   document.getElementById('fileImport')?.addEventListener('change', e=> importBackup(e, ok=> ok && (renderBoard(), renderHome(), renderProjectsSidebar())));
   document.getElementById('toggleTheme')?.addEventListener('click', ()=>{
     state.theme = (state.theme==='dark' ? 'light' : 'dark'); save(); applyTheme();
+  });
+  document.getElementById('fabNew')?.addEventListener('click', ()=>{
+    const pid = getCurrentProjectId();
+    const init = { status:'To do' };
+    if(pid !== undefined) init.projectId = pid;
+    openTaskDialog(init);
   });
 
   document.getElementById('globalSearch')?.addEventListener('input', refreshCurrentView);

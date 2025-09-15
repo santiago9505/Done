@@ -159,6 +159,7 @@ export function renderTaskCard(t){
 
   const prioClass=t.prio==='High'?'prio-high':t.prio==='Med'?'prio-med':'prio-low';
   const dueText = t.due? fmtDateTime(t.due) : '';
+  const startText = t.startAt? fmtDateTime(t.startAt) : '';
   const totalSubs=(t.subtasks||[]).length;
   const doneSubs=(t.subtasks||[]).filter(st=>st.status===FINAL_STATUS || st.done).length;
 
@@ -173,6 +174,7 @@ export function renderTaskCard(t){
     </header>
     <div class="meta">
       <span class="pill ${prioClass}">${t.prio||'Med'}</span>
+      ${startText?`<span class="pill">🚀 ${startText}</span>`:''}
       ${dueText?`<span class="pill ${overdue(t)?'overdue':''}">📅 ${dueText}</span>`:''}
       ${(t.tags||[]).slice(0,3).map(x=>`<span class="pill">#${escapeHtml(x)}</span>`).join('')}
       <span class="pill">🧮 ${displayPoints(t)}pt</span>
@@ -182,12 +184,48 @@ export function renderTaskCard(t){
     <div class="row-actions"><button class="btn" data-addsub="${t.id}">＋ Sub</button></div>
   `;
 
-  if(totalSubs){
+  if(totalSubs || true){
     const det=document.createElement('details');
     det.open=false;
     det.innerHTML=`<summary>Subtareas (${doneSubs}/${totalSubs})</summary>`;
     const list=document.createElement('div'); list.style.marginTop='6px';
+    // Header-like row
+    const hdr=document.createElement('div');
+    hdr.className='sub-row header';
+    hdr.innerHTML = `
+      <span style="width:20px"></span>
+      <span style="flex:1;min-width:120px;color:var(--muted)">Título</span>
+      <span style="width:80px;color:var(--muted)">Pts</span>
+      <span style="width:180px;color:var(--muted)">Inicio</span>
+      <span style="width:200px;color:var(--muted)">Vence</span>
+      <span style="width:40px"></span>
+    `;
+    list.appendChild(hdr);
     (t.subtasks||[]).forEach((st,idx)=> list.appendChild(renderSubtaskRow(t, st, idx)) );
+    // Inline add subtask row
+    const addRow=document.createElement('div');
+    addRow.className='sub-row';
+    addRow.innerHTML = `
+      <span style="width:20px"></span>
+      <input type="text" placeholder="Nueva subtarea" style="flex:1;min-width:120px" />
+      <input type="number" min="0" value="1" style="width:80px" title="Points"/>
+      <input type="datetime-local" style="width:180px" title="Inicio"/>
+      <input type="datetime-local" style="width:200px" title="Vence"/>
+      <button class="btn" title="Añadir">＋</button>
+    `;
+    const [titleNew, ptsNew, startNew, dueNew, addBtn] = [addRow.children[1], addRow.children[2], addRow.children[3], addRow.children[4], addRow.children[5]];
+    addBtn.addEventListener('click', ()=>{
+      const title=(titleNew.value||'').trim(); if(!title) return;
+      const st={ id:crypto.randomUUID(), title, done:false, status:'To do', points: parseInt(ptsNew.value||'1',10)||1 };
+      st.startAt = startNew.value ? parseLocalDatetimeInput(startNew.value) : Date.now();
+      st.endAt = dueNew.value ? parseLocalDatetimeInput(dueNew.value) : st.startAt;
+      st.due = st.endAt;
+      t.subtasks = t.subtasks || []; t.subtasks.push(st);
+      t.updated = Date.now(); t.points = subPoints(t); save();
+      renderBoard();
+      busRefresh.home();
+    });
+    list.appendChild(addRow);
     det.appendChild(list);
     el.appendChild(det);
   }
@@ -214,11 +252,12 @@ function renderSubtaskRow(parent, st){
     <input type="checkbox" ${st.status===FINAL_STATUS||st.done?'checked':''} title="Hecha"/>
     <input type="text" value="${escapeAttr(st.title||'')}" placeholder="Título"/>
     <input type="number" min="0" value="${st.points||0}" style="width:80px" title="Points"/>
+    <input type="datetime-local" value="${st.startAt? toLocalDatetimeInput(st.startAt):''}" style="width:180px" title="Inicio"/>
     <input type="datetime-local" value="${st.due? toLocalDatetimeInput(st.due):''}" style="width:200px" title="Vence"/>
     <button class="btn ghost" title="Abrir">✏️</button>
   `;
-  const [chk, titleEl, ptsEl, dueEl, editBtn] =
-    [row.children[0], row.children[1], row.children[2], row.children[3], row.children[4]];
+  const [chk, titleEl, ptsEl, startEl, dueEl, editBtn] =
+    [row.children[0], row.children[1], row.children[2], row.children[3], row.children[4], row.children[5]];
 
   chk.addEventListener('change', ()=>{
     st.done = chk.checked;
@@ -253,11 +292,19 @@ function renderSubtaskRow(parent, st){
   busRefresh.home();
   });
 
-  dueEl.addEventListener('change', ()=>{
-    st.due = dueEl.value ? parseLocalDatetimeInput(dueEl.value) : null;
+  startEl.addEventListener('change', ()=>{
+    st.startAt = startEl.value ? parseLocalDatetimeInput(startEl.value) : null;
     parent.updated=Date.now();
     save();
-  busRefresh.home();
+    busRefresh.home();
+  });
+
+  dueEl.addEventListener('change', ()=>{
+    st.due = dueEl.value ? parseLocalDatetimeInput(dueEl.value) : null;
+    st.endAt = st.due;
+    parent.updated=Date.now();
+    save();
+    busRefresh.home();
   });
 
   // Abrir subtarea como "tarea" (usa el editor con isSub)

@@ -18,12 +18,88 @@ import { refresh } from '../core/bus.js';
 // Estado UI local: tareas colapsadas en la lista (no se persiste)
 const collapsed = new Set();
 
+// Duración mínima por defecto (30 min) para evitar eventos de altura 0 en el calendario
+const DEFAULT_TASK_DURATION_MS = 30 * 60 * 1000;
+
+// Normaliza rango startAt/due asegurando duración mínima y sincroniza aliases usados por el calendario
+function ensureTimeRange(taskLike){
+  if(taskLike.startAt){
+    if(!taskLike.due){
+      taskLike.due = taskLike.startAt + DEFAULT_TASK_DURATION_MS;
+    }else if(taskLike.due <= taskLike.startAt){
+      taskLike.due = taskLike.startAt + DEFAULT_TASK_DURATION_MS;
+    }
+  }
+  // Sincroniza campos alternativos que puede leer el calendario
+  if(taskLike.startAt) taskLike.start = taskLike.startAt;
+  if(taskLike.due){
+    taskLike.endAt = taskLike.due;
+    taskLike.end = taskLike.due;
+  }
+}
+
+// Migra todas las tareas existentes (ejecutado al render)
+function normalizeAllTaskTimeRanges(){
+  (state.tasks||[]).forEach(t=>{
+    ensureTimeRange(t);
+    (t.subtasks||[]).forEach(st=> ensureTimeRange(st));
+  });
+}
+
+// Recupera proyectos perdidos a partir de las tareas
+function ensureProjectsFromTasks(){
+  if(!Array.isArray(state.projects)) state.projects = [];
+  const existingIds = new Set(state.projects.map(p=>p.id));
+  const taskProjectIds = new Set(
+    (state.tasks||[])
+      .filter(t=> t.projectId!=null)
+      .map(t=> t.projectId)
+  );
+  if(!taskProjectIds.size) return;
+  const palette = ['#06b6d4','#6366f1','#ec4899','#84cc16','#0ea5e9','#a855f7','#14b8a6','#f472b6'];
+  let added = false;
+  let i = 0;
+  taskProjectIds.forEach(pid=>{
+    if(!existingIds.has(pid)){
+      const niceName = pid
+        .replace(/[-_]+/g,' ')
+        .replace(/\s+/g,' ')
+        .trim()
+        .replace(/\b\w/g, c=>c.toUpperCase());
+      state.projects.push({
+        id: pid,
+        name: niceName,          // sin emoji extra
+        color: palette[i++ % palette.length],
+        created: Date.now()
+      });
+      added = true;
+    }
+  });
+  if(added) save();
+}
+
+// Seed inicial de proyectos (solo si no hay ninguno)
+function seedDefaultProjects(){
+  if(Array.isArray(state.projects) && state.projects.length) return;
+  state.projects = [
+    { id:'trading-finances', name:'💹 Trading & Finances', color:'#3b82f6', created:Date.now() },
+    { id:'work',              name:'💼 Work',              color:'#8b5cf6', created:Date.now() },
+    { id:'personal-branding', name:'🌟 Personal Branding', color:'#10b981', created:Date.now() },
+    { id:'health-wellness',   name:'🏋️‍♂️ Health & Wellness', color:'#f59e0b', created:Date.now() },
+    { id:'family-personal',   name:'👨‍👩‍👧‍👦 Family & Personal', color:'#ef4444', created:Date.now() },
+  ];
+  save();
+}
+
 export function renderTasksList(){
+  seedDefaultProjects();      // NUEVO
+  ensureProjectsFromTasks();  // existente (ahora después del seed)
   const host = document.getElementById('view-tasks'); if(!host) return;
+  normalizeAllTaskTimeRanges(); // NUEVO: garantiza datos consistentes antes de render
 
   const q = (document.getElementById('globalSearch')?.value||'').toLowerCase().trim();
-    const cols = (state.settings && state.settings.taskListCols) || ['title','status','prio','due','tags','points','project'];
-    const labels = {title:'Título', status:'Estado', prio:'Prioridad', due:'Vence', tags:'Tags', points:'Pts', project:'Proyecto'};
+  const cols = (state.settings && state.settings.taskListCols) || ['title','status','prio','start','due','tags','points','project'];
+  const labels = {title:'Título', status:'Estado', prio:'Prioridad', start:'Inicio', due:'Vence', tags:'Tags', points:'Pts', project:'Proyecto'};
 
   const pid = state.projectFilter;
   const rows = (state.tasks||[])
@@ -89,6 +165,13 @@ export function renderTasksList(){
                 <option ${t.prio==='Med'?'selected':''}>Med</option>
                 <option ${t.prio==='High'?'selected':''}>High</option>
               </select>
+            </td>`;
+          }
+          case 'start':{
+            const val = isSub ? (st.startAt||null) : (t.startAt||null);
+            const dataSub = isSub ? `data-sub="${t.id}:${st.id}"` : '';
+            return `<td style="padding:8px;border-bottom:1px solid var(--border)">
+              <input type="datetime-local" data-field="start" ${dataSub} value="${val ? toLocalDatetimeInput(val) : ''}"/>
             </td>`;
           }
           case 'due':{
@@ -176,7 +259,7 @@ export function renderTasksList(){
     el.addEventListener('change', ()=>{
       const row = el.closest('tr'); if(!row) return;
       const id = row.dataset.id; const t = (state.tasks||[]).find(x=>x.id===id); const f = el.dataset.field; if(!t) return;
-      const sub = el.getAttribute('data-sub');
+  const sub = el.getAttribute('data-sub');
 
       if(sub){
         const [tid,sid]=sub.split(':'); if(tid!==t.id) return;
@@ -187,8 +270,15 @@ export function renderTasksList(){
           st.done = (el.value===FINAL_STATUS);
           if(!wasDone && st.done){ showMega(randomKillLine()); confettiBurst(); successSound(); }
         }
-        if(f==='due') st.due = el.value ? parseLocalDatetimeInput(el.value) : null;
-        if(f==='points') st.points = parseInt(el.value||'0',10);
+        if(f==='start'){
+          st.startAt = el.value ? parseLocalDatetimeInput(el.value) : null;
+          ensureTimeRange(st);
+        }
+        if(f==='due'){
+          st.due = el.value ? parseLocalDatetimeInput(el.value) : null;
+          ensureTimeRange(st);
+        }
+        // Asegura propagación de actualización parent para sumar puntos y refrescar
         t.points = subPoints(t);
         t.updated=Date.now(); save(); renderBoard(); renderTasksList(); refresh.home();
         return;
@@ -200,7 +290,14 @@ export function renderTasksList(){
         if(el.value===FINAL_STATUS){ closeTask(id); return; }
       }
       if(f==='prio') t.prio = el.value;
-      if(f==='due'){ t.due = el.value ? parseLocalDatetimeInput(el.value) : null; }
+  if(f==='start'){
+    t.startAt = el.value ? parseLocalDatetimeInput(el.value) : null;
+    ensureTimeRange(t);
+  }
+  if(f==='due'){
+    t.due = el.value ? parseLocalDatetimeInput(el.value) : null;
+    ensureTimeRange(t);
+  }
       if(f==='points'){ t.points = parseInt(el.value||'0',10); }
 
       t.updated=Date.now(); save(); renderBoard(); renderTasksList(); refresh.home();
@@ -225,7 +322,70 @@ export function renderTasksList(){
       isSub:true, parentId: t.id
     });
   }));
+
+  patchBoardStartDates();
+  scheduleStartPills(); // en lugar de ensureStartPills directa + observer
 }
+
+// --- reemplazado: sin observer, solo funciones limpias ---
+function patchBoardStartDates(){
+  const cards = document.querySelectorAll('.board .task[data-id]');
+  if(!cards.length) return;
+  cards.forEach(el=>{
+    const id = el.dataset.id;
+    const t = (state.tasks||[]).find(x=>x.id===id);
+    if(t && t.startAt){
+      const d = new Date(t.startAt);
+      const val = d.toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit'});
+      // Solo set si cambia
+      if(el.getAttribute('data-start') !== val){
+        el.setAttribute('data-start', val);
+      }
+    }else if(el.hasAttribute('data-start')){
+      el.removeAttribute('data-start');
+    }
+  });
+}
+
+let __startPillScheduled = false;
+function scheduleStartPills(){
+  if(__startPillScheduled) return;
+  __startPillScheduled = true;
+  requestAnimationFrame(()=>{
+    ensureStartPills();
+    __startPillScheduled = false;
+  });
+}
+
+function ensureStartPills(){
+  const cards = document.querySelectorAll('.board .task[data-id]');
+  if(!cards.length) return;
+  cards.forEach(el=>{
+    const id = el.dataset.id;
+    const t = (state.tasks||[]).find(x=>x.id===id);
+    const meta = el.querySelector('.meta');
+    if(!meta) return;
+    const existing = meta.querySelector('.start-pill');
+    if(t && t.startAt){
+      const d = new Date(t.startAt);
+      const label = d.toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit'});
+      if(!existing){
+        const span = document.createElement('span');
+        span.className = 'pill start-pill';
+        span.textContent = label;
+        span.dataset.label = label;
+        meta.prepend(span);
+      }else if(existing.dataset.label !== label){
+        existing.textContent = label;
+        existing.dataset.label = label;
+      }
+    }else if(existing){
+      existing.remove();
+    }
+  });
+}
+
+// --- eliminado el MutationObserver (loop) ---
 
 
 

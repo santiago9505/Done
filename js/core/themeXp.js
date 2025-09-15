@@ -7,7 +7,16 @@ export function applyTheme(){
   // Apply custom UI settings
   const ui = state.settings?.ui || {}; 
   const root = document.documentElement.style;
-  if(ui.accent) root.setProperty('--primary', ui.accent);
+  // Accent by hour (AI-lite) or custom
+  let primary = ui.accent||'#60a5fa';
+  if(ui.accentMode === 'auto'){
+    const h = new Date().getHours();
+    // mañana (6-12), tarde (12-19), noche (19-6)
+    if(h>=6 && h<12) primary = '#7aa2ff';
+    else if(h>=12 && h<19) primary = '#f59e0b';
+    else primary = '#a78bfa';
+  }
+  root.setProperty('--primary', primary);
   const r = parseInt(ui.radius,10); if(Number.isFinite(r)){
     root.setProperty('--radius', r+'px');
   }
