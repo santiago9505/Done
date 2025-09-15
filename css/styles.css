@@ -139,3 +139,16 @@ footer{padding:30px;color:var(--muted);text-align:center}
   .main-grid{grid-template-columns:1fr}
   #projectsSidebar{position:static;max-height:none}
 }
+
+/* Modern tokens and light polish (non-breaking) */
+:root{ --radius:12px; --pad:8px; --fontScale:100% }
+body{ font-size: var(--fontScale) }
+.btn{ padding: calc(var(--pad) - 2px) calc(var(--pad) + 4px); border-radius: var(--radius); transition:transform .12s ease, background .2s, border-color .2s }
+input, select, textarea{ padding: var(--pad); border-radius: calc(var(--radius) - 2px) }
+.tab{ border-radius: var(--radius) }
+#projectsSidebar{ border-radius: var(--radius) }
+.column{ border-radius: var(--radius) }
+.dropzone{ border-radius: calc(var(--radius) - 2px) }
+.task{ border-radius: calc(var(--radius) + 2px) }
+.card{ background: linear-gradient(180deg, rgba(255,255,255,.03), transparent), var(--panel) }
+.chip, .tag{ background: linear-gradient(180deg, rgba(255,255,255,.04), transparent) }

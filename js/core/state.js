@@ -1,4 +1,4 @@
-export const VERSION = 82;
+export const VERSION = 83;
 export const DEFAULT_COLUMNS = ['To do','In progress','Done'];
 export const FINAL_STATUS = 'Done';
 export const XP_CREATE = 5, XP_CLOSE = 10;
@@ -15,7 +15,15 @@ const emptyState = () => ({
   projectFilter: 'all', // 'all' | 'none' | <projectId>
   tasks: [],
   docs: [],
-  settings: { taskListCols: ['title','status','prio','due','tags','points','project'] },
+  settings: { 
+    taskListCols: ['title','status','prio','due','tags','points','project'],
+    ui: {
+      accent: '#60a5fa', // primary/accent color
+      density: 'comfortable', // 'compact' | 'comfortable' | 'spacious'
+      radius: 12, // px base radius
+      fontScale: 100 // percentage 90-110
+    }
+  },
   xp: 0,
   lastDayClosed: null, streak: 0
 });
@@ -29,6 +37,14 @@ function migrate(s){
   if(!s.settings) s.settings = { taskListCols: ['title','status','prio','due','tags','points','project'] };
   if(Array.isArray(s.settings?.taskListCols) && !s.settings.taskListCols.includes('project')){
     s.settings.taskListCols.push('project');
+  }
+  if(!s.settings.ui){
+    s.settings.ui = { accent:'#60a5fa', density:'comfortable', radius:12, fontScale:100 };
+  }else{
+    if(typeof s.settings.ui.accent !== 'string') s.settings.ui.accent = '#60a5fa';
+    if(!['compact','comfortable','spacious'].includes(s.settings.ui.density)) s.settings.ui.density = 'comfortable';
+    const r=parseInt(s.settings.ui.radius,10); s.settings.ui.radius = Number.isFinite(r)? r : 12;
+    const fs=parseInt(s.settings.ui.fontScale,10); s.settings.ui.fontScale = Number.isFinite(fs)? fs : 100;
   }
   if(!Array.isArray(s.columns) || s.columns.length<2) s.columns=[...DEFAULT_COLUMNS];
   if(!Array.isArray(s.projects)) s.projects = [];
