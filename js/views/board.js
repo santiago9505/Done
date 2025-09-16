@@ -20,34 +20,43 @@ export function renderBoard(){
   state.tasks = Array.from(uniq.values()); save();
 
   const host=document.getElementById('view-board'); if(!host) return;
-  host.innerHTML='';
-
-  // Barra superior
-  const top = document.createElement('div');
-  top.className='card';
-  top.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center">
-    <div class="r"><b>Tablero</b></div>
-    <div class="r" style="gap:10px;display:flex;align-items:center">
-      <label>Agrupar por:</label>
-      <select id="groupBoardSel">
+  // Inject subbar controls and workspace context for this view
+  const sub = document.getElementById('subActions');
+  if(sub){
+    let ctx = '';
+    const wf = state.workspaceFilter;
+    if(wf !== 'all'){
+      const label = (wf==='none') ? 'Sin workspace' : (getProjectNameById?.(wf) || '');
+      let emoji = '📁';
+      if(wf!=='none'){
+        const ws=(state.workspaces||[]).find(w=>w.id===wf);
+        if(ws && ws.emoji) emoji = ws.emoji;
+      }
+      ctx = `<span class="chip" id="wsCtx">${emoji} ${escapeHtml(label)}</span>`;
+    }
+    sub.innerHTML = `
+      ${ctx}
+      <label class="r" style="gap:6px"><input type="checkbox" id="sbShowClosed" ${state.settings?.showClosed?'checked':''}/> Mostrar cerradas</label>
+      <label>Agrupar:</label>
+      <select id="sbGroupBoard">
         <option value="status" ${state.groupBoard==='status'?'selected':''}>Estado</option>
-        <option value="tag" ${state.groupBoard==='tag'?'selected':''}>Tag</option>
+        <option value="prio" ${state.groupBoard==='prio'?'selected':''}>Prioridad</option>
+        <option value="workspace" ${state.groupBoard==='workspace'?'selected':''}>Workspace</option>
       </select>
       <button class="btn primary" id="addTaskBoard">+ Nueva</button>
-    </div>
-  </div>`;
-  host.appendChild(top);
+    `;
+    sub.querySelector('#sbShowClosed')?.addEventListener('change', (e)=>{ state.settings.showClosed = !!e.target.checked; save(); renderBoard(); });
+    sub.querySelector('#sbGroupBoard')?.addEventListener('change', (e)=>{ state.groupBoard = e.target.value; save(); renderBoard(); });
+    sub.querySelector('#addTaskBoard')?.addEventListener('click', ()=>{
+      const pid = getCurrentProjectId();
+      const init = { status:'To do' };
+      if(pid !== undefined) init.workspaceId = pid;
+      openTaskDialog(init);
+    });
+  }
+  host.innerHTML='';
 
-  top.querySelector('#groupBoardSel').addEventListener('change', (e)=>{
-    state.groupBoard=e.target.value; save(); renderBoard();
-  });
-  // Prefill project if filtered
-  top.querySelector('#addTaskBoard').addEventListener('click', ()=>{
-    const pid = getCurrentProjectId();
-    const init = { status:'To do' };
-    if(pid !== undefined) init.projectId = pid; // undefined means 'all' filter, no prefill
-    openTaskDialog(init);
-  });
+  // Removed old in-view top controls; subbar now hosts them
 
   const q=(document.getElementById('globalSearch')?.value||'').toLowerCase().trim();
 
@@ -76,10 +85,10 @@ export function renderBoard(){
         moveTaskTo(id,col);
       });
 
-      const pid = state.projectFilter;
+  const pid = state.workspaceFilter;
       const tasks=(state.tasks||[])
         .filter(t=>t.status===col)
-        .filter(t=> pid==='all' ? true : (pid==='none' ? (t.projectId==null) : t.projectId===pid))
+  .filter(t=> pid==='all' ? true : (pid==='none' ? (t.workspaceId==null) : t.workspaceId===pid))
         .filter(t=> (state.settings?.showClosed ? true : t.status!==FINAL_STATUS))
         .filter(t=> !q || t.title.toLowerCase().includes(q) || (t.desc||'').toLowerCase().includes(q) || (t.tags||[]).join(' ').toLowerCase().includes(q))
         .sort(globalTaskComparator);
@@ -92,9 +101,9 @@ export function renderBoard(){
     host.appendChild(grid);
     host.querySelectorAll('[data-add]').forEach(b=> b.addEventListener('click', e=>{
       const col = e.currentTarget.getAttribute('data-add');
-      const pid = getCurrentProjectId();
+  const pid = getCurrentProjectId();
       const init = { status:col };
-      if(pid !== undefined) init.projectId = pid;
+  if(pid !== undefined) init.workspaceId = pid;
       openTaskDialog(init);
     }));
   }else{
@@ -128,10 +137,10 @@ export function renderBoard(){
         t.tags=val; t.updated=Date.now(); save(); renderBoard();
       });
 
-      const pid = state.projectFilter;
+  const pid = state.workspaceFilter;
       const tasks=(state.tasks||[])
         .filter(t=> ((t.tags&&t.tags.includes(tag)) || (tag==='No tag' && (!t.tags || t.tags.length===0))))
-        .filter(t=> pid==='all' ? true : (pid==='none' ? (t.projectId==null) : t.projectId===pid))
+  .filter(t=> pid==='all' ? true : (pid==='none' ? (t.workspaceId==null) : t.workspaceId===pid))
         .filter(t=> (state.settings?.showClosed ? true : t.status!==FINAL_STATUS))
         .filter(t=> !q || t.title.toLowerCase().includes(q) || (t.desc||'').toLowerCase().includes(q) || (t.tags||[]).join(' ').toLowerCase().includes(q))
         .sort(globalTaskComparator);
@@ -144,9 +153,9 @@ export function renderBoard(){
     host.appendChild(grid);
     host.querySelectorAll('[data-addtag]').forEach(b=> b.addEventListener('click', e=>{
       const tag = e.currentTarget.getAttribute('data-addtag');
-      const pid = getCurrentProjectId();
+  const pid = getCurrentProjectId();
       const init = {status:'To do', tags: tag==='No tag'? [] : [tag]};
-      if(pid !== undefined) init.projectId = pid;
+  if(pid !== undefined) init.workspaceId = pid;
       openTaskDialog(init);
     }));
   }
@@ -165,7 +174,7 @@ export function renderTaskCard(t){
   const totalSubs=(t.subtasks||[]).length;
   const doneSubs=(t.subtasks||[]).filter(st=>st.status===FINAL_STATUS || st.done).length;
 
-  const projectPill = (t.projectId!==undefined) ? `<span class="pill">📁 ${escapeHtml(getProjectNameById(t.projectId))}</span>` : '';
+  const projectPill = (t.workspaceId!==undefined) ? `<span class="pill">📁 ${escapeHtml(getProjectNameById(t.workspaceId))}</span>` : '';
   el.innerHTML = `
     <header>
       <h4 data-open="${t.id}">${escapeHtml(t.title)}</h4>
@@ -255,7 +264,7 @@ function globalTaskComparator(a,b){
       case 'due': return t.due ?? null;
       case 'start': return t.startAt ?? null;
       case 'priority': return t.prio==='High'?3 : t.prio==='Med'?2 : 1;
-      case 'project': return (getProjectNameById?.(t.projectId) || '').toString();
+  case 'workspace': return (getProjectNameById?.(t.workspaceId) || '').toString();
       case 'points': return displayPoints?.(t) ?? 0;
       case 'status': return (state.columns||[]).indexOf(t.status||'') ?? 0;
       case 'title': return (t.title||'');

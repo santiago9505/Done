@@ -47,67 +47,55 @@ function normalizeAllTaskTimeRanges(){
   });
 }
 
-// Recupera proyectos perdidos a partir de las tareas
-function ensureProjectsFromTasks(){
-  if(!Array.isArray(state.projects)) state.projects = [];
-  const existingIds = new Set(state.projects.map(p=>p.id));
-  const taskProjectIds = new Set(
-    (state.tasks||[])
-      .filter(t=> t.projectId!=null)
-      .map(t=> t.projectId)
-  );
-  if(!taskProjectIds.size) return;
-  const palette = ['#06b6d4','#6366f1','#ec4899','#84cc16','#0ea5e9','#a855f7','#14b8a6','#f472b6'];
-  let added = false;
-  let i = 0;
-  taskProjectIds.forEach(pid=>{
-    if(!existingIds.has(pid)){
-      const niceName = pid
-        .replace(/[-_]+/g,' ')
-        .replace(/\s+/g,' ')
-        .trim()
-        .replace(/\b\w/g, c=>c.toUpperCase());
-      state.projects.push({
-        id: pid,
-        name: niceName,          // sin emoji extra
-        color: palette[i++ % palette.length],
-        created: Date.now()
-      });
-      added = true;
-    }
-  });
-  if(added) save();
-}
-
-// Seed inicial de proyectos (solo si no hay ninguno)
-// Ajuste: seed solo una vez usando flag persistente didSeedProjects
-function seedDefaultProjects(){
-  if(Array.isArray(state.projects) && state.projects.length) return;
-  if(state.didSeedProjects) return; // NUEVO: no volver a sembrar
-  state.projects = [
-    { id:'trading-finances', name:'💹 Trading & Finances', color:'#3b82f6', created:Date.now(), emoji:'💸' },
-    { id:'work',              name:'💼 Work',              color:'#8b5cf6', created:Date.now(), emoji:'💼' },
-    { id:'personal-branding', name:'🌟 Personal Branding', color:'#10b981', created:Date.now(), emoji:'✨' },
-    { id:'health-wellness',   name:'🏋️‍♂️ Health & Wellness', color:'#f59e0b', created:Date.now(), emoji:'🏋️' },
-    { id:'family-personal',   name:'👨‍👩‍👧‍👦 Family & Personal', color:'#ef4444', created:Date.now(), emoji:'👨‍👩‍👧' },
-  ];
-  state.didSeedProjects = true; // NUEVO
-  save();
-}
-
 export function renderTasksList(){
-  seedDefaultProjects();      // se mantiene pero ahora es one-time por el flag
-  ensureProjectsFromTasks();  // existente (ahora después del seed)
+  // Workspaces ya se gestionan en ui/projects.js; no seed desde aquí
   const host = document.getElementById('view-tasks'); if(!host) return;
   normalizeAllTaskTimeRanges(); // NUEVO: garantiza datos consistentes antes de render
 
-  const q = (document.getElementById('globalSearch')?.value||'').toLowerCase().trim();
-  const cols = (state.settings && state.settings.taskListCols) || ['title','status','prio','start','due','tags','points','project'];
-  const labels = {title:'Título', status:'Estado', prio:'Prioridad', start:'Inicio', due:'Vence', tags:'Tags', points:'Pts', project:'Proyecto'};
+  // Inject subbar controls for Tasks
+  const sub = document.getElementById('subActions');
+  if(sub){
+    let ctx = '';
+    const wf = state.workspaceFilter;
+    if(wf !== 'all'){
+      const label = (wf==='none') ? 'Sin workspace' : (getProjectNameById?.(wf) || '');
+      let emoji = '📁';
+      if(wf!=='none'){
+        const ws=(state.workspaces||[]).find(w=>w.id===wf);
+        if(ws && ws.emoji) emoji = ws.emoji;
+      }
+      ctx = `<span class="chip" id="wsCtx">${emoji} ${escapeHtml(label)}</span>`;
+    }
+    sub.innerHTML = `
+      ${ctx}
+      <label class="r" style="gap:6px"><input type="checkbox" id="sbShowClosed" ${state.settings?.showClosed?'checked':''}/> Mostrar cerradas</label>
+      <label>Ordenar:</label>
+      <select id="sbSortBy">
+        <option value="due" ${state.settings?.sortBy==='due'?'selected':''}>Vence</option>
+        <option value="priority" ${state.settings?.sortBy==='priority'?'selected':''}>Prioridad</option>
+        <option value="start" ${state.settings?.sortBy==='start'?'selected':''}>Inicio</option>
+      </select>
+      <button class="btn" id="sbSortDir">${state.settings?.sortDir==='asc'?'↑':'↓'}</button>
+      <button class="btn primary" id="btnNewTaskTable">+ Nueva</button>
+    `;
+    sub.querySelector('#sbShowClosed')?.addEventListener('change', (e)=>{ state.settings.showClosed = !!e.target.checked; save(); renderTasksList(); });
+    sub.querySelector('#sbSortBy')?.addEventListener('change', (e)=>{ state.settings.sortBy = e.target.value; save(); renderTasksList(); });
+    sub.querySelector('#sbSortDir')?.addEventListener('click', ()=>{ state.settings.sortDir = state.settings.sortDir==='asc'?'desc':'asc'; save(); renderTasksList(); });
+    sub.querySelector('#btnNewTaskTable')?.addEventListener('click', ()=>{
+      const pid = getCurrentProjectId();
+      const init = { status:'To do' };
+      if(pid !== undefined) init.workspaceId = pid;
+      openTaskDialog(init);
+    });
+  }
 
-  const pid = state.projectFilter;
+  const q = (document.getElementById('globalSearch')?.value||'').toLowerCase().trim();
+  const cols = (state.settings && state.settings.taskListCols) || ['title','status','prio','start','due','tags','points','workspace'];
+  const labels = {title:'Título', status:'Estado', prio:'Prioridad', start:'Inicio', due:'Vence', tags:'Tags', points:'Pts', workspace:'Workspace'};
+
+  const pid = state.workspaceFilter;
   const rows = (state.tasks||[])
-    .filter(t=> pid==='all' ? true : (pid==='none' ? (t.projectId==null) : t.projectId===pid))
+  .filter(t=> pid==='all' ? true : (pid==='none' ? (t.workspaceId==null) : t.workspaceId===pid))
     .filter(t=> (state.settings?.showClosed ? true : t.status!==FINAL_STATUS))
     .filter(t=> !q || t.title.toLowerCase().includes(q) || (t.desc||'').toLowerCase().includes(q) || (t.tags||[]).join(' ').toLowerCase().includes(q))
     .sort(globalTaskComparator);
@@ -116,13 +104,11 @@ export function renderTasksList(){
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
       <h3 class="h">Lista de tareas (${rows.length})</h3>
       <div class="r" style="gap:10px">
-        <label class="r" style="gap:6px"><input type="checkbox" id="toggleClosedTasks" ${state.settings?.showClosed?'checked':''}/> Mostrar cerradas</label>
         <label>Agrupar por:</label>
         <select id="groupTasksSel">
           <option value="none" ${state.groupTasks==='none'?'selected':''}>Nada</option>
           <option value="tag" ${state.groupTasks==='tag'?'selected':''}>Tag</option>
         </select>
-        <button class="btn primary" id="btnNewTaskTable">+ Nueva</button>
       </div>
     </div>
     <div id="tableHost" style="margin-top:8px"></div>
@@ -131,16 +117,7 @@ export function renderTasksList(){
   host.querySelector('#groupTasksSel').addEventListener('change',(e)=>{
     state.groupTasks=e.target.value; save(); renderTasksList();
   });
-  host.querySelector('#btnNewTaskTable').addEventListener('click',()=>{
-    const pid = getCurrentProjectId();
-    const init = { status:'To do' };
-    if(pid !== undefined) init.projectId = pid;
-    openTaskDialog(init);
-  });
-
-  host.querySelector('#toggleClosedTasks')?.addEventListener('change', (e)=>{
-    state.settings.showClosed = !!e.target.checked; save(); renderTasksList();
-  });
+  // New task button now lives in subbar; removed local bindings
 
   function cellHtml(c,t,st){
     const isSub = !!st;
@@ -162,8 +139,8 @@ export function renderTasksList(){
               <select data-field="status" ${dataSub}>${state.columns.map(x=>`<option ${val===x?'selected':''}>${x}</option>`).join('')}</select>
             </td>`;
           }
-          case 'project':{
-            return `<td style="padding:8px;border-bottom:1px solid var(--border)">${escapeHtml(getProjectNameById(t.projectId))}</td>`;
+          case 'workspace':{
+            return `<td style="padding:8px;border-bottom:1px solid var(--border)">${escapeHtml(getProjectNameById(t.workspaceId))}</td>`;
           }
           case 'prio':{
             if(isSub){
@@ -215,9 +192,9 @@ export function renderTasksList(){
 
   function tableFor(list){
     // Cabeceras clicables para ordenar
-  const sortables = new Set(['title','status','prio','start','due','points','project']);
+  const sortables = new Set(['title','status','prio','start','due','points','workspace']);
     const headHtml = cols.map(c=>{
-      const isActive = state.settings?.sortBy === (c==='start'?'start': c==='due'?'due': c==='prio'?'priority': c==='points'?'points': c==='project'?'project': c==='title'?'title':'updated');
+  const isActive = state.settings?.sortBy === (c==='start'?'start': c==='due'?'due': c==='prio'?'priority': c==='points'?'points': c==='workspace'?'workspace': c==='title'?'title':'updated');
       const caret = isActive ? (state.settings?.sortDir==='asc'?'↑':'↓') : '';
       const clickable = sortables.has(c) ? `data-sort="${c}" style="cursor:pointer"` : '';
       return `<th ${clickable} style="text-align:left;padding:8px;border-bottom:1px solid var(--border)">${labels[c]||c} ${caret}</th>`;
@@ -258,7 +235,7 @@ export function renderTasksList(){
   host.querySelectorAll('[data-sort]')?.forEach(th=>{
     th.addEventListener('click', ()=>{
       const c = th.getAttribute('data-sort');
-  const map = { title:'title', status:'status', prio:'priority', start:'start', due:'due', points:'points', project:'project' };
+  const map = { title:'title', status:'status', prio:'priority', start:'start', due:'due', points:'points', workspace:'workspace' };
       const by = map[c] || 'updated';
       if(state.settings.sortBy === by){
         state.settings.sortDir = state.settings.sortDir==='asc'? 'desc' : 'asc';
@@ -368,7 +345,7 @@ function globalTaskComparator(a,b){
       case 'due': return t.due ?? null;
       case 'start': return t.startAt ?? null;
       case 'priority': return t.prio==='High'?3 : t.prio==='Med'?2 : 1;
-      case 'project': return (getProjectNameById?.(t.projectId)||'').toString();
+  case 'workspace': return (getProjectNameById?.(t.workspaceId)||'').toString();
       case 'points': return displayPoints?.(t) ?? 0;
       case 'status': return (state.columns||[]).indexOf(t.status||'') ?? 0;
       case 'title': return (t.title||'');

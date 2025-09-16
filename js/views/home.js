@@ -6,9 +6,23 @@ import { openTaskDialog, closeTask } from './dialog.js';
 export function renderHome(){
   const host=document.getElementById('view-home'); if(!host) return;
   host.innerHTML='';
+  // Subbar workspace context (only if filtered)
+  const sub = document.getElementById('subActions');
+  if(sub){
+    const wf = state.workspaceFilter;
+    if(wf !== 'all'){
+      const label = (wf==='none') ? 'Sin workspace' : (state.workspaces||[]).find(w=>w.id===wf)?.name || '';
+      const ws=(state.workspaces||[]).find(w=>w.id===wf);
+      const emoji = (wf==='none') ? '📁' : (ws?.emoji || '📁');
+      const clean = label.replace(/^[^\p{L}\p{N}]+/u, '').trimStart();
+      const chip = `<span class="chip" id="wsCtx">${emoji} ${escapeHtml(clean)}</span>`;
+      // prepend chip to existing actions (if any)
+      sub.innerHTML = chip + sub.innerHTML;
+    }
+  }
   const isToday=t=> t.due && isSameDay(new Date(t.due), new Date());
-  const pid = state.projectFilter;
-  const pidMatch = t => (pid==='all' ? true : (pid==='none' ? (t.projectId==null) : t.projectId===pid));
+  const pid = state.workspaceFilter;
+  const pidMatch = t => (pid==='all' ? true : (pid==='none' ? (t.workspaceId==null) : t.workspaceId===pid));
   // Aplanar tareas + subtareas
   const items = [];
   (state.tasks||[]).filter(pidMatch).forEach(t=>{

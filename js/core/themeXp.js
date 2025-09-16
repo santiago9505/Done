@@ -1,9 +1,46 @@
 import { state, VERSION } from './state.js';
 
+let _osMedia; let _osListenerAttached=false;
+
+function resolvedSystemTheme(){
+  try{
+    _osMedia = _osMedia || window.matchMedia('(prefers-color-scheme: dark)');
+    return _osMedia.matches ? 'dark' : 'light';
+  }catch{ return 'dark'; }
+}
+
+function ensureOsListener(){
+  if(_osListenerAttached) return;
+  try{
+    _osMedia = _osMedia || window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = ()=>{ if(state.theme==='auto') applyTheme(); };
+    if(_osMedia.addEventListener) _osMedia.addEventListener('change', handler);
+    else if(_osMedia.addListener) _osMedia.addListener(handler);
+    _osListenerAttached = true;
+  }catch{}
+}
+
 export function applyTheme(){ 
-  document.documentElement.setAttribute('data-theme', state.theme||'dark'); 
+  // Sync from localStorage if present
+  try{
+    const ls = localStorage.getItem('clickap.theme');
+    if(ls && ls!==state.theme){ state.theme = ls; }
+  }catch{}
+
+  const mode = state.theme || 'dark';
+  const effective = (mode==='auto') ? resolvedSystemTheme() : mode;
+  document.documentElement.setAttribute('data-theme', effective);
+  // Persist selected mode
+  try{ localStorage.setItem('clickap.theme', mode); }catch{}
+
   const chip=document.getElementById('versionChip'); 
-  if(chip) chip.textContent = 'v'+VERSION + ' · ' + (state.theme==='dark'?'🌙':'☀️'); 
+  if(chip){
+    const icon = mode==='auto' ? '🖥️' : (effective==='dark'?'🌙':'☀️');
+    chip.textContent = 'v'+VERSION + ' · ' + icon;
+  }
+  // React to OS changes when in auto
+  ensureOsListener();
+
   // Apply custom UI settings
   const ui = state.settings?.ui || {}; 
   const root = document.documentElement.style;

@@ -1,4 +1,4 @@
-export const VERSION = 85;
+export const VERSION = 86;
 export const DEFAULT_COLUMNS = ['To do','In progress','Done'];
 export const FINAL_STATUS = 'Done';
 export const XP_CREATE = 5, XP_CLOSE = 10;
@@ -10,16 +10,16 @@ const emptyState = () => ({
   columns: [...DEFAULT_COLUMNS],
   groupBoard: 'status',
   groupTasks: 'none',
-  // Proyectos
-  projects: [], // {id, name}
-  projectFilter: 'all', // 'all' | 'none' | <projectId>
+  // Workspaces (antes Proyectos)
+  workspaces: [], // {id, name}
+  workspaceFilter: 'all', // 'all' | 'none' | <workspaceId>
   tasks: [],
   docs: [],
   settings: { 
-    taskListCols: ['title','status','prio','due','tags','points','project'],
+    taskListCols: ['title','status','prio','due','tags','points','workspace'],
     // Preferencias globales
     showClosed: false, // ocultar/mostrar tareas cerradas en toda la app
-    sortBy: 'updated', // 'updated' | 'due' | 'start' | 'priority' | 'project' | 'title'
+    sortBy: 'updated', // 'updated' | 'due' | 'start' | 'priority' | 'workspace' | 'title' | 'points' | 'status'
     sortDir: 'desc',   // 'asc' | 'desc'
     ui: {
       accent: '#60a5fa', // primary/accent color
@@ -46,7 +46,9 @@ function migrate(s){
   if(typeof s.settings.sortBy !== 'string') s.settings.sortBy = 'updated';
   if(!['asc','desc'].includes(s.settings.sortDir)) s.settings.sortDir = 'desc';
   if(Array.isArray(s.settings?.taskListCols)){
-    if(!s.settings.taskListCols.includes('project')) s.settings.taskListCols.push('project');
+    // Migrar 'project' -> 'workspace'
+    s.settings.taskListCols = s.settings.taskListCols.map(c=> c==='project' ? 'workspace' : c);
+    if(!s.settings.taskListCols.includes('workspace')) s.settings.taskListCols.push('workspace');
     if(!s.settings.taskListCols.includes('start')) s.settings.taskListCols.splice(Math.max(0, s.settings.taskListCols.indexOf('due')), 0, 'start');
   }
   if(!s.settings.ui){
@@ -64,7 +66,7 @@ function migrate(s){
     if(typeof t.startAt === 'undefined') t.startAt = null;
     if(typeof t.endAt === 'undefined') t.endAt = null;
   });
-  // Projects defaults
+  // Workspaces defaults (antes Projects)
   const autoEmoji = (name='')=>{
     const n=(name||'').toLowerCase();
     if(n.includes('trading')) return '💸';
@@ -74,20 +76,30 @@ function migrate(s){
     if(n.includes('branding')) return '✨';
     return '📁';
   };
-  (s.projects||[]).forEach((p,idx)=>{
+  // Migración projects -> workspaces
+  if(!Array.isArray(s.workspaces) && Array.isArray(s.projects)){
+    s.workspaces = s.projects; delete s.projects;
+  }
+  (s.workspaces||[]).forEach((p,idx)=>{
     if(!p.emoji) p.emoji = autoEmoji(p.name);
     if(typeof p.favorite === 'undefined') p.favorite = false;
     if(typeof p.sort === 'undefined') p.sort = idx;
   });
   if(!Array.isArray(s.columns) || s.columns.length<2) s.columns=[...DEFAULT_COLUMNS];
-  if(!Array.isArray(s.projects)) s.projects = [];
-  if(!s.projectFilter) s.projectFilter = 'all';
+  if(!Array.isArray(s.workspaces)) s.workspaces = [];
+  // Migración projectFilter -> workspaceFilter
+  if(typeof s.workspaceFilter === 'undefined') s.workspaceFilter = (s.projectFilter ?? 'all');
+  delete s.projectFilter;
 
   const fixNum = v => { const n=parseInt(v,10); return Number.isFinite(n)? n : 1; };
   const seen = new Set(); const dedup = [];
   (s.tasks||[]).forEach(t=>{
     if(seen.has(t.id)) return; seen.add(t.id); dedup.push(t);
-    if(typeof t.projectId === 'undefined') t.projectId = null;
+    // Migración t.projectId -> t.workspaceId
+    if(typeof t.workspaceId === 'undefined'){
+      t.workspaceId = (typeof t.projectId !== 'undefined') ? t.projectId : null;
+    }
+    delete t.projectId;
   if(typeof t.startAt === 'undefined' || t.startAt===null) t.startAt = t.created || Date.now();
   if(typeof t.endAt === 'undefined' || t.endAt===null) t.endAt = t.due || t.startAt;
   if(t.endAt && !t.due) t.due = t.endAt;
@@ -113,9 +125,9 @@ function migrate(s){
   (s.docs||[]).forEach(d=>{ if(d.content && !d.html){ d.html = `<h1>${escapeHtml(d.title||'Documento')}</h1><pre>${escapeHtml(d.content)}</pre>`; delete d.content; } });
   if(!s.groupBoard) s.groupBoard='status';
   if(!s.groupTasks) s.groupTasks='none';
-  // Si el filtro apunta a un proyecto inexistente, reestablecer a 'all'
-  if(s.projectFilter !== 'all' && s.projectFilter !== 'none' && !s.projects.find(p=>p.id===s.projectFilter)){
-    s.projectFilter = 'all';
+  // Si el filtro apunta a un workspace inexistente, reestablecer a 'all'
+  if(s.workspaceFilter !== 'all' && s.workspaceFilter !== 'none' && !s.workspaces.find(p=>p.id===s.workspaceFilter)){
+    s.workspaceFilter = 'all';
   }
   return s;
 }

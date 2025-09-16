@@ -6,42 +6,83 @@
   <title>Clickap — v8 fix (100% local)</title>
   <!-- Estilos externos -->
   <link rel="stylesheet" href="./css/styles.css"/>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2360a5fa'/%3E%3Cpath d='M18 36l8 8 20-20' stroke='white' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <!-- Favicon links will be set dynamically by JS for light/dark themes -->
+  <link id="icon-16" rel="icon" type="image/png" sizes="16x16" href=""/>
+  <link id="icon-32" rel="icon" type="image/png" sizes="32x32" href=""/>
+  <link id="icon-48" rel="icon" type="image/png" sizes="48x48" href=""/>
+  <link id="apple-icon" rel="apple-touch-icon" sizes="180x180" href=""/>
+  <link rel="manifest" href="./manifest.json"/>
+  <link rel="mask-icon" href="./icons/mask-icon.svg" color="#8b5cf6"/>
 </head>
 <body>
-<header>
-  <div class="topbar">
-    <div class="brand"><div class="logo"></div> Clickap <span class="chip" id="versionChip"></span></div>
-    <div class="bar-actions">
-      <input id="globalSearch" class="search" placeholder="Buscar (Ctrl+F)…"/>
-      <label class="r" style="gap:6px"><input type="checkbox" id="toggleClosed"/> Mostrar cerradas</label>
-      <select id="globalSortBy" title="Ordenar por">
-        <option value="updated">Actualizadas</option>
-        <option value="due">Vence</option>
-        <option value="start">Inicio</option>
-        <option value="priority">Prioridad</option>
-        <option value="project">Proyecto</option>
-        <option value="title">Título</option>
-      </select>
-      <button class="btn" id="globalSortDir" title="Dirección">⇅</button>
-      <button class="btn" id="btnNewTask">+ Nueva (Ctrl+N)</button>
-      <input id="quickTitle" placeholder="Captura rápida…"/>
-      <button class="btn primary" id="btnQuickAdd">+ Capturar</button>
-      <button class="btn" id="btnExport">Exportar</button>
-      <label class="btn ghost"><input type="file" id="fileImport" hidden/>Importar</label>
-      <button class="btn" id="toggleTheme">🌗 Tema</button>
+<header class="app-header" role="banner">
+  <div class="h-left">
+    <button class="logo-btn" id="btnHome" aria-label="Inicio" role="link">
+      <svg class="logo-svg" width="28" height="28" viewBox="0 0 24 24" aria-hidden="true">
+        <defs>
+          <linearGradient id="gLogo" x1="0%" y1="100%" x2="100%" y2="0%">
+            <stop id="gStart" offset="0%" stop-color="var(--logo-start)"/>
+            <stop id="gEnd" offset="100%" stop-color="var(--logo-end)"/>
+          </linearGradient>
+        </defs>
+        <rect x="2" y="2" width="20" height="20" rx="4" fill="url(#gLogo)"/>
+        <rect x="2.75" y="2.75" width="18.5" height="18.5" rx="3.5" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="1.25"/>
+        <g class="check" transform="translate(0,0)">
+          <path d="M7 12.5l3 3 7-7" fill="none" stroke="white" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2"/>
+        </g>
+      </svg>
+      <span class="wordmark">Done</span>
+      <span class="badge">v86</span>
+    </button>
+  </div>
+
+  <div class="h-center">
+    <button class="kbd-hint" id="openCmd" aria-label="Abrir Command Palette (Ctrl/Cmd+K)">
+      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M10 18v-6H6v-2h4V4h2v6h4v2h-4v6z"/></svg>
+    </button>
+    <div class="search-wrap">
+      <input id="globalSearch" type="search" placeholder="Buscar tareas, docs y workspaces…"
+             autocomplete="off" aria-label="Buscar" />
+      <span class="key">Ctrl</span><span class="plus">+</span><span class="key">K</span>
     </div>
   </div>
-  <div class="tabs">
-    <div class="tab active" data-view="home">Inicio</div>
-    <div class="tab" data-view="board">Tablero</div>
-    <div class="tab" data-view="tasks">Tareas</div>
-    <div class="tab" data-view="docs">Documentos</div>
-    <div class="tab" data-view="summary">Resumen</div>
-    <div class="tab" data-view="settings">Ajustes</div>
-    <div class="chip" id="xpChip">Nivel 1 · 0 XP</div>
+
+  <div class="h-right">
+    <button class="icon-btn" id="themeToggle" aria-label="Cambiar tema">
+      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 3a9 9 0 0 0 0 18a9 9 0 0 1 0-18z"/></svg>
+    </button>
+    <div class="user-menu">
+      <button class="user-pill" id="userMenuBtn" aria-haspopup="menu">
+        <span class="dot online"></span>
+        <span class="u-name">Santi</span>
+        <span class="u-xp">Lvl 9 • 5 XP</span>
+      </button>
+      <div class="menu" id="userDropdown" role="menu" hidden>
+        <button role="menuitem" data-action="profile">Perfil</button>
+        <button role="menuitem" data-action="backup">Exportar/Importar</button>
+        <button role="menuitem" data-action="logout">Salir</button>
+      </div>
+    </div>
+    <button class="icon-btn" id="quickHelp" aria-label="Ayuda / Guía rápida" title="Ayuda / Guía rápida">?</button>
+    <button class="icon-btn" id="quickChangelog" aria-label="Changelog" title="Changelog">🗒️</button>
   </div>
 </header>
+
+<!-- Ancla para una barra secundaria (breadcrumbs/filtros por vista) -->
+<div id="subbar-anchor">
+  <nav class="subbar" role="navigation" aria-label="Navegación principal">
+    <div class="tabs-wrap">
+      <button class="tab-btn" data-route="home" aria-current="page">Inicio</button>
+      <button class="tab-btn" data-route="board">Tablero</button>
+      <button class="tab-btn" data-route="tasks">Tareas</button>
+      <button class="tab-btn" data-route="docs">Documentos</button>
+      <button class="tab-btn" data-route="summary">Resumen</button>
+      <button class="tab-btn" data-route="settings">Ajustes</button>
+    </div>
+    <div class="sub-actions" id="subActions" aria-live="polite"></div>
+  </nav>
+  
+</div>
 
 <main>
   <div class="main-grid">

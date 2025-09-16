@@ -32,8 +32,8 @@ function captureTags(dlg){
 export function openTaskDialog(init){
   const isSub = !!init.isSub;
   const isNew = !init.id;
-  const t = Object.assign({
-    id: uid(), title:'', desc:'', prio:'Med', due:null, tags:[], projectId: null,
+    const t = Object.assign({
+      id: uid(), title:'', desc:'', prio:'Med', due:null, tags:[], workspaceId: null,
     status: init.status || 'To do',
     created: Date.now(), updated: Date.now(), closed: null,
     docIds:[], points:1, subtasks:[],
@@ -42,7 +42,7 @@ export function openTaskDialog(init){
   }, init);
   t.comments = Array.isArray(t.comments) ? t.comments : [];
 
-  const projectDisplayName = stripEmojiPrefix(getProjectNameById(t.projectId));
+  const projectDisplayName = stripEmojiPrefix(getProjectNameById(t.workspaceId));
 
   const dlg = document.getElementById('taskDialog');
   dlg.innerHTML = `
@@ -52,7 +52,8 @@ export function openTaskDialog(init){
         <div class="meta-bar">
           <span class="chip">Estado: ${t.status}</span>
           ${t.due?`<span class="chip">Vence: ${fmtDateTime(t.due)}</span>`:''}
-          <span class="chip">Proyecto: ${escapeHtml(projectDisplayName)}</span>
+          <span class="chip">Workspace: ${escapeHtml(projectDisplayName)}</span>
+            <span class="chip">Workspace: ${escapeHtml(projectDisplayName)}</span>
           <span class="chip">Points: ${displayPoints(t)}</span>
         </div>
         <label>Título</label>
@@ -63,10 +64,10 @@ export function openTaskDialog(init){
         </div>
         ${isSub? '' : `<div class="inline-grid" style="margin-top:8px">
             <div>
-              <label>Proyecto</label>
+                <label>Workspace</label>
               <select id="t-project" style="width:100%">
-                <option value="" ${t.projectId==null?'selected':''}>Sin proyecto</option>
-                ${(state.projects||[]).map(p=>`<option value="${p.id}" ${t.projectId===p.id?'selected':''}>${escapeHtml(stripEmojiPrefix(p.name||''))}</option>`).join('')}
+                  <option value="" ${t.workspaceId==null?'selected':''}>Sin workspace</option>
+                  ${(state.workspaces||[]).map(p=>`<option value="${p.id}" ${t.workspaceId===p.id?'selected':''}>${escapeHtml(stripEmojiPrefix(p.name||''))}</option>`).join('')}
               </select>
             </div>
             <div></div>
@@ -283,7 +284,7 @@ export function openTaskDialog(init){
     t.tags   = captureTags(dlg);
     if(!isSub){
       const pjSel = dlg.querySelector('#t-project');
-      if(pjSel){ const v=pjSel.value; t.projectId = v? v : null; }
+      if(pjSel){ const v=pjSel.value; t.workspaceId = v? v : null; }
     }
     t.recur = {
       type: dlg.querySelector('#t-recur-type').value,

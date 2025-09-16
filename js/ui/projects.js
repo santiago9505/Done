@@ -9,10 +9,10 @@ function stripEmojiPrefix(txt){
   return txt.replace(/^[^\p{L}\p{N}]+/u, '').trimStart();
 }
 
-function projectName(id){
+function workspaceName(id){
   if(id===undefined) return 'Todos';
-  if(id===null) return 'Sin proyecto';
-  const p = (state.projects||[]).find(x=>x.id===id);
+  if(id===null) return 'Sin workspace';
+  const p = (state.workspaces||[]).find(x=>x.id===id);
   return p ? stripEmojiPrefix(p.name) : 'Desconocido';
 }
 
@@ -33,14 +33,14 @@ function deepClone(obj){ return JSON.parse(JSON.stringify(obj||{})); }
 function getExportSnapshot(){
   // Incluye proyectos, tareas (con subtareas y comentarios + adjuntos como dataURL), docs y settings
   return {
-    projects: JSON.parse(JSON.stringify(state.projects||[])),
+    workspaces: JSON.parse(JSON.stringify(state.workspaces||[])),
     tasks: JSON.parse(JSON.stringify(state.tasks||[])), // contiene t.comments y sus files (dataUrl)
     docs: JSON.parse(JSON.stringify(state.docs||[])),
     settings: JSON.parse(JSON.stringify(state.settings||{})),
     columns: deepClone(state.columns||[]),
     streak: state.streak||0,
     lastDayClosed: state.lastDayClosed||null,
-    projectFilter: state.projectFilter ?? 'all',
+    workspaceFilter: state.workspaceFilter ?? 'all',
     groupTasks: state.groupTasks || 'none'
   };
 }
@@ -58,14 +58,15 @@ function exportAllData(){
 
 function normalizeImportedState(incoming){
   // Asegura contenedores base
-  if(!Array.isArray(incoming.projects)) incoming.projects = [];
+  if(!Array.isArray(incoming.workspaces) && Array.isArray(incoming.projects)) incoming.workspaces = incoming.projects;
+  if(!Array.isArray(incoming.workspaces)) incoming.workspaces = [];
   if(!Array.isArray(incoming.tasks)) incoming.tasks = [];
   if(!Array.isArray(incoming.docs)) incoming.docs = [];
   if(!Array.isArray(incoming.columns)) incoming.columns = ['To do','In progress','Done'];
   if(typeof incoming.settings!=='object' || !incoming.settings) incoming.settings = {};
 
   // Normaliza proyectos (emoji por nombre)
-  incoming.projects.forEach(ensureEmoji);
+  incoming.workspaces.forEach(ensureEmoji);
 
   // Normaliza tareas, subtareas y comentarios con adjuntos
   incoming.tasks.forEach(t=>{
@@ -106,14 +107,14 @@ async function importAllDataFromFile(file){
   const incoming = normalizeImportedState(incomingRaw);
 
   Object.assign(state, {
-    projects: incoming.projects,
+    workspaces: incoming.workspaces,
     tasks: incoming.tasks,       // comentarios + adjuntos quedan preservados
     docs: incoming.docs,
     settings: incoming.settings,
     columns: incoming.columns,
     streak: incoming.streak||0,
     lastDayClosed: incoming.lastDayClosed||null,
-    projectFilter: incoming.projectFilter ?? 'all',
+    workspaceFilter: incoming.workspaceFilter ?? 'all',
     groupTasks: incoming.groupTasks || 'none'
   });
 
@@ -131,7 +132,7 @@ const EMOJI_SET = [
   '🐞','🔒','🧩','🔬','🧫','🔭','🧮','🧑‍🍳','🍽️'
 ];
 
-function showEmojiPicker(anchorEl, projectId){
+function showEmojiPicker(anchorEl, workspaceId){
   let picker = document.getElementById('emojiPicker');
   if(!picker){
     picker = document.createElement('div');
@@ -144,7 +145,7 @@ function showEmojiPicker(anchorEl, projectId){
   picker.querySelectorAll('[data-emo]').forEach(btn=>{
     btn.onclick = ()=>{
       const emo = btn.getAttribute('data-emo');
-      const p = (state.projects||[]).find(x=>x.id===projectId);
+      const p = (state.workspaces||[]).find(x=>x.id===workspaceId);
       if(p){ p.emoji = emo; save(); renderProjectsSidebar(); renderBoard(); renderTasksList(); renderHome(); }
       picker.style.display='none';
     };
@@ -157,17 +158,17 @@ function showEmojiPicker(anchorEl, projectId){
 
 /* ========== Render sidebar ========== */
 function renderList(host){
-  const list = (state.projects||[]).map(p=>{ ensureEmoji(p); if(typeof p.favorite==='undefined') p.favorite=false; if(typeof p.sort==='undefined') p.sort=0; return p; });
+  const list = (state.workspaces||[]).map(p=>{ ensureEmoji(p); if(typeof p.favorite==='undefined') p.favorite=false; if(typeof p.sort==='undefined') p.sort=0; return p; });
   const favs = list.filter(p=>p.favorite).sort((a,b)=> (a.sort||0)-(b.sort||0));
   const others = list.filter(p=>!p.favorite).sort((a,b)=> a.name.localeCompare(b.name));
 
   host.querySelector('.proj-list').innerHTML = `
-    <div class="proj ${state.projectFilter==='all'?'active':''}" data-sel="all"><span class="name">Todos</span></div>
-    <div class="proj ${state.projectFilter==='none'?'active':''}" data-sel="none"><span class="name">Sin proyecto</span></div>
+  <div class="proj ${state.workspaceFilter==='all'?'active':''}" data-sel="all"><span class="name">Todos</span></div>
+  <div class="proj ${state.workspaceFilter==='none'?'active':''}" data-sel="none"><span class="name">Sin workspace</span></div>
     <div style="margin:6px 0;color:var(--muted);font-size:12px">Favoritos</div>
     <div class="fav-zone">
       ${favs.map(p=>`
-        <div class="proj ${state.projectFilter===p.id?'active':''}" draggable="true" data-id="${p.id}" data-sel="${p.id}">
+  <div class="proj ${state.workspaceFilter===p.id?'active':''}" draggable="true" data-id="${p.id}" data-sel="${p.id}">
           <span class="emoji" data-emoji-edit="${p.id}" title="Cambiar emoji">${p.emoji||'📁'}</span>
           <span class="name">${stripEmojiPrefix(p.name||'')}</span>
           <span class="x" data-star="${p.id}" title="Quitar de favoritos">★</span>
@@ -177,7 +178,7 @@ function renderList(host){
     <details open>
       <summary style="cursor:pointer;color:var(--muted);font-size:12px">Todos</summary>
       ${others.map(p=>`
-        <div class="proj ${state.projectFilter===p.id?'active':''}" data-sel="${p.id}">
+  <div class="proj ${state.workspaceFilter===p.id?'active':''}" data-sel="${p.id}">
           <span class="emoji" data-emoji-edit="${p.id}" title="Cambiar emoji">${p.emoji||'📁'}</span>
           <span class="name">${stripEmojiPrefix(p.name||'')}</span>
           <span class="x" data-star="${p.id}" title="Añadir a favoritos">☆</span>
@@ -189,7 +190,7 @@ function renderList(host){
   // Selección
   host.querySelectorAll('[data-sel]').forEach(el=> el.addEventListener('click', ()=>{
     const val = el.getAttribute('data-sel');
-    state.projectFilter = val==='all'? 'all' : (val==='none'? 'none' : val);
+    state.workspaceFilter = val==='all'? 'all' : (val==='none'? 'none' : val);
     save(); renderBoard(); renderTasksList(); renderHome(); renderProjectsSidebar();
   }));
 
@@ -197,10 +198,10 @@ function renderList(host){
   host.querySelectorAll('[data-del]').forEach(el=> el.addEventListener('click', (e)=>{
     e.stopPropagation();
     const id = el.getAttribute('data-del');
-    if(!confirm('¿Eliminar proyecto y desasignar sus tareas?')) return;
-    state.projects = (state.projects||[]).filter(p=>p.id!==id);
-    (state.tasks||[]).forEach(t=>{ if(t.projectId===id) t.projectId = null; });
-    if(state.projectFilter===id) state.projectFilter='all';
+    if(!confirm('¿Eliminar workspace y desasignar sus tareas?')) return;
+    state.workspaces = (state.workspaces||[]).filter(p=>p.id!==id);
+    (state.tasks||[]).forEach(t=>{ if(t.workspaceId===id) t.workspaceId = null; });
+    if(state.workspaceFilter===id) state.workspaceFilter='all';
     save(); renderBoard(); renderTasksList(); renderHome(); renderProjectsSidebar();
   }));
 
@@ -208,9 +209,9 @@ function renderList(host){
   host.querySelectorAll('[data-star]').forEach(el=> el.addEventListener('click', (e)=>{
     e.stopPropagation();
     const id=el.getAttribute('data-star');
-    const p=(state.projects||[]).find(x=>x.id===id); if(!p) return;
+    const p=(state.workspaces||[]).find(x=>x.id===id); if(!p) return;
     p.favorite = !p.favorite;
-    if(p.favorite){ p.sort = Math.max(0, ...state.projects.map(pp=>pp.sort||0))+1; }
+    if(p.favorite){ p.sort = Math.max(0, ...(state.workspaces||[]).map(pp=>pp.sort||0))+1; }
     save(); renderProjectsSidebar();
   }));
 
@@ -224,11 +225,11 @@ function renderList(host){
       e.preventDefault();
       const targetId = el.getAttribute('data-id');
       if(!dragId||!targetId||dragId===targetId) return;
-      const favsNow = (state.projects||[]).filter(p=>p.favorite).sort((a,b)=> (a.sort||0)-(b.sort||0));
+  const favsNow = (state.workspaces||[]).filter(p=>p.favorite).sort((a,b)=> (a.sort||0)-(b.sort||0));
       const order = favsNow.map(p=>p.id);
       const from = order.indexOf(dragId), to = order.indexOf(targetId);
       if(from>-1 && to>-1){ order.splice(to,0, order.splice(from,1)[0]); }
-      (state.projects||[]).forEach(p=>{ if(p.favorite){ p.sort = order.indexOf(p.id); } });
+      (state.workspaces||[]).forEach(p=>{ if(p.favorite){ p.sort = order.indexOf(p.id); } });
       save(); renderProjectsSidebar();
     });
   });
@@ -237,8 +238,8 @@ function renderList(host){
   host.querySelectorAll('[data-emoji-edit]').forEach(el=>{
     el.addEventListener('click', (e)=>{
       e.stopPropagation();
-      const pid = el.getAttribute('data-emoji-edit');
-      showEmojiPicker(el, pid);
+      const wid = el.getAttribute('data-emoji-edit');
+      showEmojiPicker(el, wid);
     });
   });
 }
@@ -288,10 +289,10 @@ function ensureAppBrand(){
 export function renderProjectsSidebar(){
   const host = document.getElementById('projectsSidebar'); if(!host) return;
   host.innerHTML = `
-    <div class="head"><b>Proyectos</b><span class="chip">${(state.projects||[]).length}</span></div>
+    <div class="head"><b>Workspaces</b><span class="chip">${(state.workspaces||[]).length}</span></div>
     <div class="proj-list"></div>
     <div class="create">
-      <input id="pjName" placeholder="Nuevo proyecto…"/>
+      <input id="pjName" placeholder="Nuevo workspace…"/>
       <button class="btn" id="pjAdd">Añadir</button>
     </div>
     <div class="r" style="margin-top:8px">
@@ -307,9 +308,9 @@ export function renderProjectsSidebar(){
   host.querySelector('#pjAdd').addEventListener('click', ()=>{
     const inp = host.querySelector('#pjName');
     const name = (inp.value||'').trim(); if(!name){ inp.focus(); return; }
-    const p={id:uid(), name, emoji:'', favorite:false, sort:(state.projects||[]).length};
+    const p={id:uid(), name, emoji:'', favorite:false, sort:(state.workspaces||[]).length};
     ensureEmoji(p);
-    (state.projects || (state.projects=[])).push(p);
+    (state.workspaces || (state.workspaces=[])).push(p);
     save(); inp.value='';
     renderProjectsSidebar();
   });
@@ -323,9 +324,13 @@ export function renderProjectsSidebar(){
 }
 
 export function getCurrentProjectId(){
-  if(state.projectFilter==='all') return undefined;
-  if(state.projectFilter==='none') return null;
-  return state.projectFilter;
+  // backwards compatibility shim
+  if(state.workspaceFilter==='all') return undefined;
+  if(state.workspaceFilter==='none') return null;
+  return state.workspaceFilter;
 }
 
-export function getProjectNameById(id){ return projectName(id); }
+export function getProjectNameById(id){ return workspaceName(id); }
+// New API names (optional future usage)
+export const getCurrentWorkspaceId = getCurrentProjectId;
+export const getWorkspaceNameById = getProjectNameById;
