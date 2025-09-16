@@ -1,4 +1,4 @@
-export const VERSION = 84;
+export const VERSION = 85;
 export const DEFAULT_COLUMNS = ['To do','In progress','Done'];
 export const FINAL_STATUS = 'Done';
 export const XP_CREATE = 5, XP_CLOSE = 10;
@@ -17,6 +17,10 @@ const emptyState = () => ({
   docs: [],
   settings: { 
     taskListCols: ['title','status','prio','due','tags','points','project'],
+    // Preferencias globales
+    showClosed: false, // ocultar/mostrar tareas cerradas en toda la app
+    sortBy: 'updated', // 'updated' | 'due' | 'start' | 'priority' | 'project' | 'title'
+    sortDir: 'desc',   // 'asc' | 'desc'
     ui: {
       accent: '#60a5fa', // primary/accent color
       accentMode: 'auto', // 'auto' | 'custom'
@@ -37,6 +41,10 @@ export function load(){ try{ return JSON.parse(localStorage.getItem('clickap')) 
 function migrate(s){
   s.version = VERSION;
   if(!s.settings) s.settings = { taskListCols: ['title','status','prio','due','tags','points','project'] };
+  // Defaults de preferencias globales
+  if(typeof s.settings.showClosed === 'undefined') s.settings.showClosed = false;
+  if(typeof s.settings.sortBy !== 'string') s.settings.sortBy = 'updated';
+  if(!['asc','desc'].includes(s.settings.sortDir)) s.settings.sortDir = 'desc';
   if(Array.isArray(s.settings?.taskListCols)){
     if(!s.settings.taskListCols.includes('project')) s.settings.taskListCols.push('project');
     if(!s.settings.taskListCols.includes('start')) s.settings.taskListCols.splice(Math.max(0, s.settings.taskListCols.indexOf('due')), 0, 'start');

@@ -31,11 +31,12 @@ function ensureEmoji(p){
 function deepClone(obj){ return JSON.parse(JSON.stringify(obj||{})); }
 
 function getExportSnapshot(){
+  // Incluye proyectos, tareas (con subtareas y comentarios + adjuntos como dataURL), docs y settings
   return {
-    projects: deepClone(state.projects||[]),
-    tasks: deepClone(state.tasks||[]),
-    docs: deepClone(state.docs||[]),
-    settings: deepClone(state.settings||{}),
+    projects: JSON.parse(JSON.stringify(state.projects||[])),
+    tasks: JSON.parse(JSON.stringify(state.tasks||[])), // contiene t.comments y sus files (dataUrl)
+    docs: JSON.parse(JSON.stringify(state.docs||[])),
+    settings: JSON.parse(JSON.stringify(state.settings||{})),
     columns: deepClone(state.columns||[]),
     streak: state.streak||0,
     lastDayClosed: state.lastDayClosed||null,
@@ -56,17 +57,43 @@ function exportAllData(){
 }
 
 function normalizeImportedState(incoming){
+  // Asegura contenedores base
   if(!Array.isArray(incoming.projects)) incoming.projects = [];
   if(!Array.isArray(incoming.tasks)) incoming.tasks = [];
   if(!Array.isArray(incoming.docs)) incoming.docs = [];
   if(!Array.isArray(incoming.columns)) incoming.columns = ['To do','In progress','Done'];
   if(typeof incoming.settings!=='object' || !incoming.settings) incoming.settings = {};
+
+  // Normaliza proyectos (emoji por nombre)
   incoming.projects.forEach(ensureEmoji);
+
+  // Normaliza tareas, subtareas y comentarios con adjuntos
   incoming.tasks.forEach(t=>{
     if(!t.id) t.id = uid();
     if(!Array.isArray(t.subtasks)) t.subtasks = [];
-    t.subtasks.forEach(st=>{ if(!st.id) st.id = uid(); });
+    if(!Array.isArray(t.comments)) t.comments = [];
+    // Subtareas
+    t.subtasks.forEach(st=>{
+      if(!st.id) st.id = uid();
+      if(st.done && !st.status) st.status = 'Done';
+    });
+    // Comentarios
+    t.comments.forEach(c=>{
+      if(!c.id) c.id = uid();
+      if(!c.ts) c.ts = Date.now();
+      if(!Array.isArray(c.files)) c.files = [];
+      c.files.forEach(f=>{
+        if(!f.id) f.id = uid();
+        // Asegurar estructura mínima de archivo
+        if(typeof f.name !== 'string') f.name = 'archivo';
+        if(typeof f.type !== 'string') f.type = '';
+        if(typeof f.size !== 'number') f.size = 0;
+        // dataUrl debe ser string para que el preview funcione
+        if(typeof f.dataUrl !== 'string') f.dataUrl = '';
+      });
+    });
   });
+
   return incoming;
 }
 
@@ -77,9 +104,10 @@ async function importAllDataFromFile(file){
   const incomingRaw = parsed?.state && typeof parsed.state==='object' ? parsed.state : parsed;
   if(!incomingRaw || typeof incomingRaw!=='object'){ alert('Contenido inválido'); return; }
   const incoming = normalizeImportedState(incomingRaw);
+
   Object.assign(state, {
     projects: incoming.projects,
-    tasks: incoming.tasks,
+    tasks: incoming.tasks,       // comentarios + adjuntos quedan preservados
     docs: incoming.docs,
     settings: incoming.settings,
     columns: incoming.columns,
@@ -88,6 +116,7 @@ async function importAllDataFromFile(file){
     projectFilter: incoming.projectFilter ?? 'all',
     groupTasks: incoming.groupTasks || 'none'
   });
+
   save();
   renderProjectsSidebar(); renderBoard(); renderTasksList(); renderHome();
 }

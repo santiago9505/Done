@@ -14,6 +14,16 @@
     <div class="brand"><div class="logo"></div> Clickap <span class="chip" id="versionChip"></span></div>
     <div class="bar-actions">
       <input id="globalSearch" class="search" placeholder="Buscar (Ctrl+F)…"/>
+      <label class="r" style="gap:6px"><input type="checkbox" id="toggleClosed"/> Mostrar cerradas</label>
+      <select id="globalSortBy" title="Ordenar por">
+        <option value="updated">Actualizadas</option>
+        <option value="due">Vence</option>
+        <option value="start">Inicio</option>
+        <option value="priority">Prioridad</option>
+        <option value="project">Proyecto</option>
+        <option value="title">Título</option>
+      </select>
+      <button class="btn" id="globalSortDir" title="Dirección">⇅</button>
       <button class="btn" id="btnNewTask">+ Nueva (Ctrl+N)</button>
       <input id="quickTitle" placeholder="Captura rápida…"/>
       <button class="btn primary" id="btnQuickAdd">+ Capturar</button>

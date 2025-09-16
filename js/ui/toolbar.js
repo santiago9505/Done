@@ -64,6 +64,26 @@ export function wireToolbar(){
 
   document.getElementById('globalSearch')?.addEventListener('input', refreshCurrentView);
 
+  // Inicializar y manejar toggle de cerradas
+  const closedChk = document.getElementById('toggleClosed');
+  if(closedChk){
+    closedChk.checked = !!state.settings?.showClosed;
+    closedChk.addEventListener('change', ()=>{ state.settings.showClosed = !!closedChk.checked; save(); refreshCurrentView(); });
+  }
+  // Orden global
+  const sortBySel = document.getElementById('globalSortBy');
+  if(sortBySel){
+    sortBySel.value = state.settings?.sortBy || 'updated';
+    sortBySel.addEventListener('change', ()=>{ state.settings.sortBy = sortBySel.value; save(); refreshCurrentView(); });
+  }
+  const sortDirBtn = document.getElementById('globalSortDir');
+  if(sortDirBtn){
+    const setDirLabel = ()=>{ sortDirBtn.textContent = state.settings?.sortDir==='asc' ? '↑' : '↓'; };
+    if(!['asc','desc'].includes(state.settings?.sortDir)) state.settings.sortDir='desc';
+    setDirLabel();
+    sortDirBtn.addEventListener('click', ()=>{ state.settings.sortDir = (state.settings.sortDir==='asc'?'desc':'asc'); save(); setDirLabel(); refreshCurrentView(); });
+  }
+
   window.addEventListener('keydown', (e)=>{
     const key=e.key.toLowerCase();
     if((e.ctrlKey||e.metaKey) && key==='n'){ e.preventDefault(); openTaskDialog({status:'To do'}); }

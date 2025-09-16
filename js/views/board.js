@@ -80,8 +80,9 @@ export function renderBoard(){
       const tasks=(state.tasks||[])
         .filter(t=>t.status===col)
         .filter(t=> pid==='all' ? true : (pid==='none' ? (t.projectId==null) : t.projectId===pid))
+        .filter(t=> (state.settings?.showClosed ? true : t.status!==FINAL_STATUS))
         .filter(t=> !q || t.title.toLowerCase().includes(q) || (t.desc||'').toLowerCase().includes(q) || (t.tags||[]).join(' ').toLowerCase().includes(q))
-        .sort((a,b)=> (a.updated||0) < (b.updated||0)?1:-1);
+        .sort(globalTaskComparator);
 
       tasks.forEach(t=> dz.appendChild(renderTaskCard(t)));
       colEl.appendChild(dz);
@@ -131,8 +132,9 @@ export function renderBoard(){
       const tasks=(state.tasks||[])
         .filter(t=> ((t.tags&&t.tags.includes(tag)) || (tag==='No tag' && (!t.tags || t.tags.length===0))))
         .filter(t=> pid==='all' ? true : (pid==='none' ? (t.projectId==null) : t.projectId===pid))
+        .filter(t=> (state.settings?.showClosed ? true : t.status!==FINAL_STATUS))
         .filter(t=> !q || t.title.toLowerCase().includes(q) || (t.desc||'').toLowerCase().includes(q) || (t.tags||[]).join(' ').toLowerCase().includes(q))
-        .sort((a,b)=> (a.updated||0) < (b.updated||0)?1:-1);
+        .sort(globalTaskComparator);
 
       tasks.forEach(t=> dz.appendChild(renderTaskCard(t)));
       colEl.appendChild(dz);
@@ -152,7 +154,7 @@ export function renderBoard(){
 
 export function renderTaskCard(t){
   const el=document.createElement('div');
-  el.className='task';
+  el.className='task'+(t.status===FINAL_STATUS?' closed':'');
   el.draggable=true;
   el.dataset.id=t.id;
   el.addEventListener('dragstart', e=>{ e.dataTransfer.setData('text/plain', t.id); });
@@ -243,6 +245,37 @@ export function renderTaskCard(t){
   });
 
   return el;
+}
+
+function globalTaskComparator(a,b){
+  const by = state.settings?.sortBy || 'updated';
+  const dir = state.settings?.sortDir === 'asc' ? 1 : -1;
+  const get = (t)=>{
+    switch(by){
+      case 'due': return t.due ?? null;
+      case 'start': return t.startAt ?? null;
+      case 'priority': return t.prio==='High'?3 : t.prio==='Med'?2 : 1;
+      case 'project': return (getProjectNameById?.(t.projectId) || '').toString();
+      case 'points': return displayPoints?.(t) ?? 0;
+      case 'status': return (state.columns||[]).indexOf(t.status||'') ?? 0;
+      case 'title': return (t.title||'');
+      case 'updated': default: return t.updated || 0;
+    }
+  };
+  let va=get(a), vb=get(b);
+  // Fechas null al final, en ambos sentidos
+  if((by==='due' || by==='start')){
+    const aMissing = (va==null);
+    const bMissing = (vb==null);
+    if(aMissing && !bMissing) return 1;
+    if(bMissing && !aMissing) return -1;
+    va = aMissing ? 0 : va; vb = bMissing ? 0 : vb;
+  }
+  // String compare
+  if(typeof va==='string' || typeof vb==='string'){
+    va = String(va); vb = String(vb); return va.localeCompare(vb) * dir;
+  }
+  return (va===vb? 0 : (va>vb?1:-1)) * dir;
 }
 
 function renderSubtaskRow(parent, st){

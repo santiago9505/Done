@@ -37,8 +37,10 @@ export function openTaskDialog(init){
     status: init.status || 'To do',
     created: Date.now(), updated: Date.now(), closed: null,
     docIds:[], points:1, subtasks:[],
-    recur:{type:'none',every:1,trigger:'complete',skipWeekends:false,createNew:true,forever:true,nextStatus:'To do', last:null}
+    recur:{type:'none',every:1,trigger:'complete',skipWeekends:false,createNew:true,forever:true,nextStatus:'To do', last:null},
+    comments: [] // NUEVO: actividad/comentarios
   }, init);
+  t.comments = Array.isArray(t.comments) ? t.comments : [];
 
   const projectDisplayName = stripEmojiPrefix(getProjectNameById(t.projectId));
 
@@ -97,6 +99,28 @@ export function openTaskDialog(init){
           <div class="r"><span>Update status to:</span><select id="t-recur-nextstatus">${state.columns.map(c=>`<option ${t.recur?.nextStatus===c?'selected':''}>${c}</option>`).join('')}</select></div>
         </div>
         <div class="card"><div class="r"><span class="chip">Vincular docs</span></div><select id="t-docs" multiple size="6" style="width:100%">${(state.docs||[]).map(d=>`<option value="${d.id}" ${t.docIds?.includes(d.id)?'selected':''}>${escapeHtml(d.title||'Documento')}</option>`).join('')}</select></div>
+        <!-- NUEVO: Comentarios/Actividad -->
+        <div class="card" id="t-commentsCard">
+          <div class="r" style="justify-content:space-between;align-items:center">
+            <span class="chip">Comentarios</span>
+            <small style="color:var(--muted)">Arrastra archivos o pega imágenes</small>
+          </div>
+          <div id="t-commentsList" class="sub-list" style="max-height:38vh;overflow:auto;margin-top:6px"></div>
+          <div class="r" style="flex-direction:column;gap:6px;margin-top:8px">
+            <div id="t-attachPreview" class="r" style="flex-wrap:wrap;gap:6px"></div>
+            <textarea id="t-newComment" placeholder="Escribe un comentario…" style="width:100%;min-height:70px"></textarea>
+            <div class="r" style="justify-content:space-between;width:100%">
+              <div class="r" style="gap:6px">
+                <input type="file" id="t-attachFile" multiple
+                  accept="image/*,video/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/zip,*/*"
+                  style="display:none"/>
+                <button class="btn" type="button" id="t-attachBtn">Adjuntar</button>
+                <span class="chip" id="t-dropHint" style="display:none">Suelta archivos aquí…</span>
+              </div>
+              <button class="btn primary" type="button" id="t-addComment">Agregar</button>
+            </div>
+          </div>
+        </div>
       </div>
     </form>`;
   dlg.showModal();
@@ -112,6 +136,135 @@ export function openTaskDialog(init){
     if(e.key==='Backspace' && !tagInput.value){ const last=tagBox.querySelector('.tag:last-of-type'); last?.remove(); }
   });
   tagBox.querySelectorAll('.x').forEach(x=> x.addEventListener('click', ()=> x.parentElement.remove()));
+
+  // ===== NUEVO: Comentarios con adjuntos =====
+  const listEl = dlg.querySelector('#t-commentsList');
+  const attachBtn = dlg.querySelector('#t-attachBtn');
+  const attachInput = dlg.querySelector('#t-attachFile');
+  const attachPreview = dlg.querySelector('#t-attachPreview');
+  const newCommentEl = dlg.querySelector('#t-newComment');
+  const dropHint = dlg.querySelector('#t-dropHint');
+
+  let draftFiles = []; // {id,name,type,size,dataUrl}
+
+  function renderAttachPreview(){
+    attachPreview.innerHTML = draftFiles.map(f=>{
+      const safeName = escapeHtml(f.name||'archivo');
+      if((f.type||'').startsWith('image/')){
+        return `<div class="tag" data-remove="${f.id}" title="${safeName}">
+          <img src="${f.dataUrl}" alt="${safeName}" style="width:64px;height:48px;object-fit:cover;border-radius:6px;border:1px solid var(--border)"/>
+          <span class="x">×</span>
+        </div>`;
+      }
+      if((f.type||'').startsWith('video/')){
+        return `<div class="tag" data-remove="${f.id}" title="${safeName}">🎬 ${safeName} <span class="x">×</span></div>`;
+      }
+      return `<div class="tag" data-remove="${f.id}" title="${safeName}">📎 ${safeName} <span class="x">×</span></div>`;
+    }).join('');
+    attachPreview.querySelectorAll('[data-remove] .x').forEach(x=>{
+      x.addEventListener('click', ()=>{
+        const id = x.parentElement.getAttribute('data-remove');
+        draftFiles = draftFiles.filter(df=>df.id!==id);
+        renderAttachPreview();
+      });
+    });
+  }
+
+  function renderComments(){
+    if(!Array.isArray(t.comments)) t.comments=[];
+    listEl.innerHTML = t.comments.slice().sort((a,b)=>a.ts-b.ts).map(c=>{
+      const when = new Date(c.ts||Date.now()).toLocaleString();
+      const text = escapeHtml(c.text||'');
+      const filesHtml = (c.files||[]).map(f=>{
+        const safeName = escapeHtml(f.name||'archivo');
+        if((f.type||'').startsWith('image/')){
+          return `<a href="${f.dataUrl}" target="_blank" download="${safeName}" class="tag" title="${safeName}">
+            <img src="${f.dataUrl}" alt="${safeName}" style="width:80px;height:60px;object-fit:cover;border-radius:6px;border:1px solid var(--border)"/>
+          </a>`;
+        }
+        if((f.type||'').startsWith('video/')){
+          return `<video src="${f.dataUrl}" controls style="width:160px;max-width:100%;border-radius:8px;border:1px solid var(--border)"></video>`;
+        }
+        return `<a href="${f.dataUrl}" download="${safeName}" class="tag" title="${safeName}">📎 ${safeName}</a>`;
+      }).join('');
+      return `<div class="sub-row" data-cid="${c.id}">
+        <div style="flex:1">
+          <div style="font-size:12px;color:var(--muted)">${when}</div>
+          ${text?`<div style="margin:4px 0">${text.replace(/\n/g,'<br/>')}</div>`:''}
+          <div class="r" style="flex-wrap:wrap;gap:6px">${filesHtml}</div>
+        </div>
+        <span class="x" data-delc="${c.id}" title="Eliminar">×</span>
+      </div>`;
+    }).join('');
+    listEl.querySelectorAll('[data-delc]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const id = btn.getAttribute('data-delc');
+        t.comments = (t.comments||[]).filter(c=>c.id!==id);
+        t.updated = Date.now(); save(); renderComments();
+      });
+    });
+  }
+
+  function fileToDataUrl(file){
+    return new Promise((res,rej)=>{
+      const fr = new FileReader();
+      fr.onload = ()=> res(fr.result);
+      fr.onerror = rej;
+      fr.readAsDataURL(file);
+    });
+  }
+
+  async function addFiles(files){
+    for(const f of files){
+      try{
+        const dataUrl = await fileToDataUrl(f);
+        draftFiles.push({ id:uid(), name:f.name, type:f.type, size:f.size, dataUrl });
+      }catch{}
+    }
+    renderAttachPreview();
+  }
+
+  attachBtn.addEventListener('click', ()=> attachInput.click());
+  attachInput.addEventListener('change', async (e)=>{
+    const files = Array.from(e.target.files||[]);
+    await addFiles(files);
+    attachInput.value='';
+  });
+
+  // Soporte drag & drop en la tarjeta de comentarios
+  const commentsCard = dlg.querySelector('#t-commentsCard');
+  commentsCard.addEventListener('dragover', (e)=>{ e.preventDefault(); dropHint.style.display='inline-block'; });
+  commentsCard.addEventListener('dragleave', ()=>{ dropHint.style.display='none'; });
+  commentsCard.addEventListener('drop', async (e)=>{
+    e.preventDefault(); dropHint.style.display='none';
+    const files = Array.from(e.dataTransfer?.files||[]);
+    if(files.length) await addFiles(files);
+  });
+
+  // Pegar imagen desde portapapeles
+  newCommentEl.addEventListener('paste', async (e)=>{
+    const items = Array.from(e.clipboardData?.items||[]);
+    const files = items.filter(i=>i.kind==='file').map(i=>i.getAsFile()).filter(Boolean);
+    if(files.length){ await addFiles(files); }
+  });
+
+  dlg.querySelector('#t-addComment').addEventListener('click', ()=>{
+    const txt = (newCommentEl.value||'').trim();
+    if(!txt && !draftFiles.length) return;
+    const c = { id:uid(), ts:Date.now(), text:txt, files:[...draftFiles] };
+    (t.comments || (t.comments=[])).push(c);
+    draftFiles = []; newCommentEl.value=''; renderAttachPreview(); renderComments();
+    t.updated = Date.now();
+    if(!isNew){
+      // Persistir inmediatamente en edición de tarea existente
+      const idx = (state.tasks||[]).findIndex(x=>x.id===t.id);
+      if(idx>=0){ state.tasks[idx]=t; save(); renderBoard(); renderTasksList(); refresh.home(); }
+    }
+  });
+
+  renderComments();
+
+  // ===== FIN NUEVO: Comentarios =====
 
   dlg.querySelector('#t-save').addEventListener('click', (e)=>{
     e.preventDefault();

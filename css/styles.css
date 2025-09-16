@@ -118,6 +118,11 @@ main{padding:16px;max-width:1400px;margin:0 auto}
 .row-actions{position:absolute;right:8px;bottom:8px;opacity:0;transition:opacity .15s}
 .task:hover .row-actions{opacity:1}
 
+/* Tablas: filas cerradas */
+tr.closed td{ color: var(--muted); background: linear-gradient(180deg, rgba(16,185,129,.08), transparent); }
+tr.closed td:first-child{ position: relative }
+tr.closed td:first-child::before{ content:''; position:absolute; left:8px; top:50%; width:8px; height:8px; background:var(--success); border-radius:50%; transform:translateY(-50%)}
+
 /* Tag input */
 .tagbox{display:flex;gap:6px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:6px}
 .tag{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);padding:3px 8px;border-radius:999px}
@@ -228,7 +233,11 @@ input, select, textarea{ padding: var(--pad); border-radius: calc(var(--radius) 
   margin-right:4px;
   opacity:.9;
 }
-  color:var(--text);
-  margin-right:4px;
-  opacity:.9;
-}
+
+/* ---- Closed state visuals ---- */
+.task.closed{opacity:.85;border-color:rgba(16,185,129,.35);box-shadow:inset 0 0 0 2px rgba(16,185,129,.25)}
+.task.closed header h4::after{content:' ✔'; color:var(--success); font-weight:700}
+/* Tablas: filas cerradas */
+tr.closed td{ color: var(--muted); background: linear-gradient(180deg, rgba(16,185,129,.08), transparent); }
+tr.closed td:first-child{ position: relative }
+tr.closed td:first-child::before{ content:''; position:absolute; left:8px; top:50%; width:8px; height:8px; background:var(--success); border-radius:50%; transform:translateY(-50%)}

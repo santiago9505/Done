@@ -1,5 +1,6 @@
 // /js/views/tasks.js
 import { state, FINAL_STATUS, save } from '../core/state.js';
+import { displayPoints } from '../core/utils.js';
 import { getCurrentProjectId, getProjectNameById } from '../ui/projects.js';
 import {
   escapeHtml,
@@ -107,13 +108,15 @@ export function renderTasksList(){
   const pid = state.projectFilter;
   const rows = (state.tasks||[])
     .filter(t=> pid==='all' ? true : (pid==='none' ? (t.projectId==null) : t.projectId===pid))
+    .filter(t=> (state.settings?.showClosed ? true : t.status!==FINAL_STATUS))
     .filter(t=> !q || t.title.toLowerCase().includes(q) || (t.desc||'').toLowerCase().includes(q) || (t.tags||[]).join(' ').toLowerCase().includes(q))
-    .sort((a,b)=> (a.updated||0) < (b.updated||0)?1:-1);
+    .sort(globalTaskComparator);
 
   host.innerHTML = `<div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
       <h3 class="h">Lista de tareas (${rows.length})</h3>
       <div class="r" style="gap:10px">
+        <label class="r" style="gap:6px"><input type="checkbox" id="toggleClosedTasks" ${state.settings?.showClosed?'checked':''}/> Mostrar cerradas</label>
         <label>Agrupar por:</label>
         <select id="groupTasksSel">
           <option value="none" ${state.groupTasks==='none'?'selected':''}>Nada</option>
@@ -133,6 +136,10 @@ export function renderTasksList(){
     const init = { status:'To do' };
     if(pid !== undefined) init.projectId = pid;
     openTaskDialog(init);
+  });
+
+  host.querySelector('#toggleClosedTasks')?.addEventListener('change', (e)=>{
+    state.settings.showClosed = !!e.target.checked; save(); renderTasksList();
   });
 
   function cellHtml(c,t,st){
@@ -207,18 +214,26 @@ export function renderTasksList(){
   }
 
   function tableFor(list){
+    // Cabeceras clicables para ordenar
+  const sortables = new Set(['title','status','prio','start','due','points','project']);
+    const headHtml = cols.map(c=>{
+      const isActive = state.settings?.sortBy === (c==='start'?'start': c==='due'?'due': c==='prio'?'priority': c==='points'?'points': c==='project'?'project': c==='title'?'title':'updated');
+      const caret = isActive ? (state.settings?.sortDir==='asc'?'↑':'↓') : '';
+      const clickable = sortables.has(c) ? `data-sort="${c}" style="cursor:pointer"` : '';
+      return `<th ${clickable} style="text-align:left;padding:8px;border-bottom:1px solid var(--border)">${labels[c]||c} ${caret}</th>`;
+    }).join('');
     return `<div style="overflow:auto; max-height:70vh">
       <table class="grid" style="width:100%">
-        <thead><tr>${cols.map(c=>`<th style="text-align:left;padding:8px;border-bottom:1px solid var(--border)">${labels[c]||c}</th>`).join('')}<th style="width:80px"></th></tr></thead>
+        <thead><tr>${headHtml}<th style="width:80px"></th></tr></thead>
         <tbody>
           ${list.map(t=>{
-            const taskRow = `<tr data-id="${t.id}">
+            const taskRow = `<tr data-id="${t.id}" class="${t.status===FINAL_STATUS?'closed':''}">
               ${cols.map(c=>cellHtml(c,t,null)).join('')}
               <td style="padding:8px;border-bottom:1px solid var(--border)"><button class="btn ghost" data-addsub="${t.id}" title="Añadir subtarea">＋</button></td>
             </tr>`;
             const isCollapsed = collapsed.has(t.id);
             const subRows = isCollapsed ? '' : (t.subtasks||[]).map(st=>`
-              <tr data-id="${t.id}" data-sub="${t.id}:${st.id}">
+              <tr data-id="${t.id}" data-sub="${t.id}:${st.id}" class="${(st.status===FINAL_STATUS || st.done)?'closed':''}">
                 ${cols.map(c=>cellHtml(c,t,st)).join('')}
                 <td style="padding:8px;border-bottom:1px solid var(--border)"></td>
               </tr>
@@ -238,6 +253,21 @@ export function renderTasksList(){
   }else{
     tableHost.innerHTML = tableFor(rows);
   }
+
+  // Ordenar al hacer click en cabeceras
+  host.querySelectorAll('[data-sort]')?.forEach(th=>{
+    th.addEventListener('click', ()=>{
+      const c = th.getAttribute('data-sort');
+  const map = { title:'title', status:'status', prio:'priority', start:'start', due:'due', points:'points', project:'project' };
+      const by = map[c] || 'updated';
+      if(state.settings.sortBy === by){
+        state.settings.sortDir = state.settings.sortDir==='asc'? 'desc' : 'asc';
+      }else{
+        state.settings.sortBy = by; state.settings.sortDir = 'asc';
+      }
+      save(); renderTasksList();
+    });
+  });
 
   // Abrir tarea desde la celda título
   host.querySelectorAll('[data-open]').forEach(el=> el.addEventListener('click', ()=>{
@@ -328,6 +358,35 @@ export function renderTasksList(){
 
   patchBoardStartDates();
   scheduleStartPills(); // en lugar de ensureStartPills directa + observer
+}
+
+function globalTaskComparator(a,b){
+  const by = state.settings?.sortBy || 'updated';
+  const dir = state.settings?.sortDir === 'asc' ? 1 : -1;
+  const get = (t)=>{
+    switch(by){
+      case 'due': return t.due ?? null;
+      case 'start': return t.startAt ?? null;
+      case 'priority': return t.prio==='High'?3 : t.prio==='Med'?2 : 1;
+      case 'project': return (getProjectNameById?.(t.projectId)||'').toString();
+      case 'points': return displayPoints?.(t) ?? 0;
+      case 'status': return (state.columns||[]).indexOf(t.status||'') ?? 0;
+      case 'title': return (t.title||'');
+      case 'updated': default: return t.updated || 0;
+    }
+  };
+  let va=get(a), vb=get(b);
+  if((by==='due' || by==='start')){
+    const aMissing = (va==null);
+    const bMissing = (vb==null);
+    if(aMissing && !bMissing) return 1;
+    if(bMissing && !aMissing) return -1;
+    va = aMissing ? 0 : va; vb = bMissing ? 0 : vb;
+  }
+  if(typeof va==='string' || typeof vb==='string'){
+    va = String(va); vb = String(vb); return va.localeCompare(vb) * dir;
+  }
+  return (va===vb? 0 : (va>vb?1:-1)) * dir;
 }
 
 // --- reemplazado: sin observer, solo funciones limpias ---

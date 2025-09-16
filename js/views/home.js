@@ -39,7 +39,7 @@ export function renderHome(){
     return 'Próximas';
   };
   const groups = new Map();
-  items.filter(it=> it.status!==FINAL_STATUS).forEach(it=>{
+  items.filter(it=> state.settings?.showClosed ? true : (it.status!==FINAL_STATUS)).forEach(it=>{
     const g = bucket(it); if(!groups.has(g)) groups.set(g, []); groups.get(g).push(it);
   });
   groups.forEach(list=> list.sort((a,b)=> (a.due||Infinity) - (b.due||Infinity)));
@@ -60,7 +60,10 @@ export function renderHome(){
   // UI
   const focusPanel = `
     <div class="card" style="margin-bottom:12px">
-      <h3 class="h">Hoy, enfócate en…</h3>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h3 class="h">Hoy, enfócate en…</h3>
+        <label class="r" style="gap:6px"><input type="checkbox" id="toggleClosedHome" ${state.settings?.showClosed?'checked':''}/> Mostrar cerradas</label>
+      </div>
       <div class="r" style="gap:8px;flex-wrap:wrap;margin:6px 0 8px 0">
         <span class="chip">Hoy: ${kpiToday}</span>
         <span class="chip">Atrasadas: ${kpiOver}</span>
@@ -105,8 +108,9 @@ export function renderHome(){
           const totalSubs=(t.subtasks||[]).length; const doneSubs=(t.subtasks||[]).filter(s=>s.done||s.status===FINAL_STATUS).length;
           const prog = totalSubs? Math.round((doneSubs/totalSubs)*100) : 0;
           const openAttr = isSub ? `data-open-sub="${t.id}:${st.id}"` : `data-open="${t.id}"`;
-          const closeBtn = it.status!==FINAL_STATUS ? (isSub ? `<button class="btn success" data-close-sub="${t.id}:${st.id}">✔</button>` : `<button class="btn success" data-close="${t.id}">✔</button>`) : '';
-          return `<div class="task ${it.overdue?'over':''}" style="cursor:default;${indent};${it.overdue?'background:rgba(248,113,113,.08);border-style:dashed;border-color:rgba(248,113,113,.25)':''}">
+          const isClosed = it.status===FINAL_STATUS;
+          const closeBtn = !isClosed ? (isSub ? `<button class="btn success" data-close-sub="${t.id}:${st.id}">✔</button>` : `<button class="btn success" data-close="${t.id}">✔</button>`) : '';
+          return `<div class="task ${it.overdue?'over':''} ${isClosed?'closed':''}" style="cursor:default;${indent};${it.overdue?'background:rgba(248,113,113,.08);border-style:dashed;border-color:rgba(248,113,113,.25)':''}">
             <header><h4 ${openAttr}>${escapeHtml(title)}</h4>
               <div class="icons">${closeBtn}</div>
             </header>
@@ -128,7 +132,9 @@ export function renderHome(){
   const events = items
     .filter(it=>{
       const s = it.kind==='sub' ? (it.st.startAt||null) : (it.t.startAt||null);
-      return s && isSameDay(new Date(s), new Date());
+      const isClosed = it.status===FINAL_STATUS;
+      const closedOk = state.settings?.showClosed ? true : !isClosed;
+      return s && closedOk && isSameDay(new Date(s), new Date());
     })
     .map(it=>{
       const s = it.kind==='sub' ? (it.st.startAt||null) : (it.t.startAt||null);
@@ -139,7 +145,11 @@ export function renderHome(){
       const startFloat = new Date(s).getHours() + (new Date(s).getMinutes()/60);
       return { it, startAt:s, endAt:e, start:startFloat, duration: durationHours };
     });
-  const right=`<div class="card"><h3 class="h">Calendar — ${new Date().toLocaleDateString()}</h3>
+  const right=`<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h3 class="h">Calendar — ${new Date().toLocaleDateString()}</h3>
+      <label class="r" style="gap:6px"><input type="checkbox" id="toggleClosedCal" ${state.settings?.showClosed?'checked':''}/> Mostrar cerradas</label>
+    </div>
     <div style="display:grid;grid-template-columns:80px 1fr;gap:8px;max-height:70vh;overflow:auto">
       <div>${hours.map(h=>`<div style="height:48px;color:var(--muted)">${(h%12)||12}${h<12?'am':'pm'}</div>`).join('')}</div>
       <div id="timeline" style="position:relative;border-left:1px solid var(--border)">
@@ -150,7 +160,8 @@ export function renderHome(){
           const openAttr = isSub ? `data-open-sub="${t.id}:${st.id}"` : `data-open="${t.id}"`;
           const dataId = isSub ? `${t.id}:${st.id}` : `${t.id}`;
           const timeLabel = `${fmtDateTime(e.startAt).split(' ')[1]} — ${fmtDateTime(e.endAt).split(' ')[1]}`;
-          return `<div class="task" draggable="true" data-evt="${dataId}" style="position:absolute;left:8px;right:8px;top:${top}px;height:${height}px"><header><h4 ${openAttr}>${escapeHtml(title)}</h4></header><div class="meta"><span class="pill">${timeLabel}</span></div></div>`
+          const isClosed = it.status===FINAL_STATUS;
+          return `<div class="task ${isClosed?'closed':''}" draggable="true" data-evt="${dataId}" style="position:absolute;left:8px;right:8px;top:${top}px;height:${height}px"><header><h4 ${openAttr}>${escapeHtml(title)}</h4></header><div class="meta"><span class="pill">${timeLabel}</span></div></div>`
         }).join('')}
         ${hours.map(h=>`<div class="slot" data-hour="${h}" style="position:absolute;left:0;right:0;top:${(h-8)*48}px;height:48px"></div>`).join('')}
       </div>
@@ -158,6 +169,10 @@ export function renderHome(){
   </div>`;
 
   host.innerHTML = `<div class="view-flex">${left}${right}</div>`;
+
+  // Toggles de cerradas (Home)
+  document.getElementById('toggleClosedHome')?.addEventListener('change', (e)=>{ state.settings.showClosed = !!e.target.checked; save(); renderHome(); });
+  document.getElementById('toggleClosedCal')?.addEventListener('change', (e)=>{ state.settings.showClosed = !!e.target.checked; save(); renderHome(); });
 
   // DnD timeline: mover evento
   const tl = host.querySelector('#timeline');
