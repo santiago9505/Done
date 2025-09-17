@@ -329,7 +329,8 @@ export function openTaskDialog(init){
     dlg.close(); renderBoard(); renderTasksList(); refresh.home(); toast('Eliminada');
   });
 
-  dlg.querySelector('#t-cancel').addEventListener('click',()=> dlg.close());
+  dlg.querySelector('#t-cancel').addEventListener('click',()=>{ dlg.close(); try{ window.dispatchEvent(new CustomEvent('task-dialog:cancelled')); }catch{} });
+  dlg.addEventListener('close', ()=>{ try{ window.dispatchEvent(new CustomEvent('task-dialog:closed')); }catch{} });
 }
 
 export function closeTask(id){

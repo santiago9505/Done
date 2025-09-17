@@ -159,6 +159,8 @@ export function wireToolbar(){
   const expBtn = document.getElementById('expandSearch');
   const dd = document.getElementById('searchDropdown');
   let ddItems = []; let ddIndex = -1; let recognizing = false; let rec; let recFinalText="";
+  // Draft for create-task panel
+  let createDraft = null;
   const getActiveField = ()=> document.getElementById('globalSearchML') || input;
   function autoGrow(ta){ if(!ta) return; ta.style.height='auto'; const max=Math.round(window.innerHeight*0.4); ta.style.height=Math.min(ta.scrollHeight, max)+"px"; }
   function isSearchModalOpen(){ return !!document.getElementById('searchOverlay'); }
@@ -183,8 +185,127 @@ export function wireToolbar(){
   }
   function setExpanded(on){ if(!wrap) return; wrap.classList.toggle('expanded', !!on); getActiveField()?.setAttribute('aria-expanded', on?'true':'false'); }
   function openDD(){ if(!dd) return; dd.hidden=false; getActiveField()?.setAttribute('aria-expanded','true'); }
-  function closeDD(){ if(!dd) return; dd.hidden=true; getActiveField()?.setAttribute('aria-expanded','false'); ddIndex=-1; renderDD(); }
-  function renderDD(){ if(!dd) return; dd.innerHTML = ddItems.map((it,i)=>`<div class="item" role="option" aria-selected="${i===ddIndex?'true':'false'}" data-id="${i}"><span>${it.label}</span><span class="op-70">${it.kbd||''}</span></div>`).join(''); }
+  function closeDD(){
+    if(!dd) return;
+    dd.hidden=true;
+    getActiveField()?.setAttribute('aria-expanded','false');
+    ddIndex=-1;
+    // Reset create draft so the form starts fresh next time
+    createDraft = null;
+    renderDD();
+  }
+  function renderDD(){
+    if(!dd) return;
+    const listHtml = ddItems.map((it,i)=>`<div class="item" role="option" aria-selected="${i===ddIndex?'true':'false'}" data-id="${i}"><span>${it.label}</span><span class="op-70">${it.kbd||''}</span></div>`).join('');
+    const panelHtml = createDraft ? renderCreatePanel() : '';
+    dd.innerHTML = panelHtml + listHtml;
+    if(createDraft) wireCreatePanel();
+  }
+  // Escape utility for HTML
+  function esc(s){ return (s||'').replace(/[&<>]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+  // Finalize phrases (ES/EN)
+  function hasFinalizePhrase(q){
+    const t=(q||'').toLowerCase().replace(/[’`]/g, "'");
+    return /(eso\s+es\s+todo|con\s+eso\s+es\s+todo|listo)\b|\b(that'?s\s+it|that'?s\s+all|done)\b/.test(t);
+  }
+  function stripFinalizePhrases(txt){
+    if(!txt) return txt;
+    let t=txt.replace(/[’`]/g, "'");
+    // remove trailing finalize phrases and surrounding punctuation/spaces
+    t=t.replace(/[,;\s]*\b(eso\s+es\s+todo|con\s+eso\s+es\s+todo|that'?s\s+it|that'?s\s+all|done|listo)\b[,;\s]*$/i, '').trim();
+    return t;
+  }
+  function sanitizeFinalizeEverywhere(txt){
+    if(!txt) return txt;
+    let t=txt.replace(/[’`]/g, "'");
+    t=t.replace(/\b(eso\s+es\s+todo|con\s+eso\s+es\s+todo|that'?s\s+it|that'?s\s+all|done|listo)\b[\s,.;:!?]*/ig, ' ');
+    return t.replace(/\s{2,}/g,' ').trimStart();
+  }
+  // Create-task triggers (ES/EN) anywhere
+  const CREATE_TRIGGERS_RE = /\b(crear\s+(?:una\s+)?tarea|nueva\s+tarea|agregar\s+tarea|añadir\s+tarea|create\s+(?:a\s+)?task|new\s+task|add\s+(?:a\s+)?task)\b/ig;
+  function sanitizeCreateTitle(txt){
+    if(!txt) return '';
+    let t = (''+txt).replace(/[’`]/g, "'");
+    // remove finalize phrases and create triggers anywhere
+    t = t.replace(/\b(eso\s+es\s+todo|con\s+eso\s+es\s+todo|that'?s\s+it|that'?s\s+all|done|listo)\b/ig,' ');
+    t = t.replace(CREATE_TRIGGERS_RE, ' ');
+    // collapse punctuation near spaces
+    t = t.replace(/\s+[.,;:]+/g, match=>match.trim());
+    // trim leading punctuation and dashes
+    t = t.replace(/^[\s\p{Pd}.,;:!¡¿?\-–—]+/u,'');
+    // collapse spaces and trim
+    t = t.replace(/\s{2,}/g,' ').trim();
+    return t;
+  }
+    // If the input starts with a create-task command, we want to hide that prefix in the field (show only the title)
+    const CREATE_START_RE = /^\s*(crear\s+(?:una\s+)?tarea|nueva\s+tarea|agregar\s+tarea|añadir\s+tarea|create\s+(?:a\s+)?task|new\s+task|add\s+(?:a\s+)?task)\b[:\-\s]*/i;
+  // Guess language based on text content
+  function guessLangFromText(txt){
+    const t=(txt||'').toLowerCase();
+    const hasES = /(crear\s+tarea|nueva\s+tarea|agregar\s+tarea|añadir\s+tarea|hoy|mañana|semana|eso\s+es\s+todo|con\s+eso\s+es\s+todo|llamar|comprar|revisar)/.test(t);
+    const hasEN = /(create\s+task|new\s+task|add\s+task|today|tomorrow|this\s+week|that'?s\s+(it|all)|call|buy|review)/.test(t);
+    if(hasES && !hasEN) return 'es-ES';
+    if(hasEN && !hasES) return 'en-US';
+    // If both or none, fall back to preferred languages
+    const prefs=(navigator.languages||[navigator.language||'en-US']).map(x=>String(x||'').toLowerCase());
+    if(prefs.some(x=>x.startsWith('es'))) return 'es-ES';
+    return 'en-US';
+  }
+  // Detect and parse "crear tarea" / "create task" intent; returns a draft or null
+  function parseCreateTask(q){
+    const raw=q||''; if(!raw.trim()) return null;
+    const re=/(?:^|\s)(crear\s+(?:una\s+)?tarea|nueva\s+tarea|agregar\s+tarea|añadir\s+tarea|create\s+(?:a\s+)?task|new\s+task|add\s+(?:a\s+)?task)\s*[:\-]?\s*(.*)$/i;
+    const m=re.exec(raw);
+    if(!m) return null;
+    let title=(m[2]||'').trim();
+    // Pull quoted title if available
+    const mQuote=raw.match(/"([^"]+)"|'([^']+)'/);
+    if(!title && mQuote){ title=(mQuote[1]||mQuote[2]||'').trim(); }
+    title = title.replace(/^(que|para)\s+/i,'').trim();
+    title = sanitizeCreateTitle(title);
+    return { title, prio:'Med', due:null, checklistRaw:'', _dueKey:'none', source:raw };
+  }
+  function dateForQuick(val){ const now=new Date(); const d=new Date(); d.setHours(23,59,0,0); if(val==='today') return d.getTime(); if(val==='tomorrow'){ d.setDate(now.getDate()+1); return d.getTime(); } if(val==='week'){ const day=(now.getDay()||7); const toSun=7-day; d.setDate(now.getDate()+toSun); return d.getTime(); } return null; }
+  function renderCreatePanel(){ if(!dd || !createDraft) return ''; const d=createDraft; return `
+    <div class="item create-panel" role="group" aria-label="Crear tarea">
+      <div class="cp-title">Crear tarea</div>
+      <div class="cp-field"><div class="label">Título</div><div class="cp-title-preview">${esc(d.title||'Nueva tarea')}</div></div>
+      <div class="cp-chips"><span class="label">Prioridad</span>
+        <button class="chip ${d.prio==='High'?'active':''}" data-act="set-prio" data-val="High" type="button">Alta</button>
+        <button class="chip ${d.prio==='Med'?'active':''}" data-act="set-prio" data-val="Med" type="button">Media</button>
+        <button class="chip ${d.prio==='Low'?'active':''}" data-act="set-prio" data-val="Low" type="button">Baja</button>
+      </div>
+      <div class="cp-chips"><span class="label">Vencimiento</span>
+        <button class="chip ${d.due && d._dueKey==='today'?'active':''}" data-act="set-due" data-val="today" type="button">Hoy</button>
+        <button class="chip ${d.due && d._dueKey==='tomorrow'?'active':''}" data-act="set-due" data-val="tomorrow" type="button">Mañana</button>
+        <button class="chip ${d.due && d._dueKey==='week'?'active':''}" data-act="set-due" data-val="week" type="button">Esta semana</button>
+        <button class="chip ${!d.due?'active':''}" data-act="set-due" data-val="none" type="button">Sin fecha</button>
+      </div>
+      <div class="cp-checklist"><label for="ddChecklist">Checklist (una por línea)</label>
+        <textarea id="ddChecklist" rows="2" placeholder="Escribe subtareas…">${esc(d.checklistRaw||'')}</textarea>
+      </div>
+      <div class="cp-actions">
+        <button class="btn primary" data-act="create" type="button">Crear</button>
+      </div>
+    </div>`; }
+  function wireCreatePanel(){
+    const panel = dd?.querySelector('.create-panel');
+    if(!panel) return;
+    panel.addEventListener('click', (e)=>{
+      const btn=e.target.closest('button'); if(!btn) return; const act=btn.getAttribute('data-act'); const val=btn.getAttribute('data-val');
+      if(act==='set-prio'){ createDraft.prio=val; renderDD(); return; }
+      if(act==='set-due'){
+        if(val==='none'){ createDraft.due=null; createDraft._dueKey='none'; }
+        else { createDraft.due=dateForQuick(val); createDraft._dueKey=val; }
+        renderDD(); return;
+      }
+      if(act==='create'){ createTaskFromDraft(); }
+    });
+    const ta=panel.querySelector('#ddChecklist');
+    if(ta){ ta.addEventListener('input', ()=>{ createDraft.checklistRaw=ta.value; }); }
+  }
+  function checklistToSubtasks(raw){ const arr=(raw||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean); return arr.map(t=>({ id: uid(), title: t, done:false })); }
+  function createTaskFromDraft(){ if(!createDraft) return; const title=(createDraft.title||'Nueva tarea').trim(); const subtasks=checklistToSubtasks(createDraft.checklistRaw); const pid=getCurrentProjectId(); const init={ title, prio:createDraft.prio||'Med', due:createDraft.due||null, subtasks, status:'To do' }; if(pid!==undefined) init.workspaceId=pid; closeDD(); try{ if(isSearchModalOpen()) closeSearchModal(); }catch{} openTaskDialog(init); }
   function setIndex(i){ ddIndex = Math.max(0, Math.min(ddItems.length-1, i)); renderDD(); const el = dd?.querySelector(`[data-id="${ddIndex}"]`); el?.scrollIntoView({block:'nearest'}); }
   function isCommand(s){ return s.trim().startsWith('>'); }
   function detectTaskIntent(s){
@@ -195,9 +316,18 @@ export function wireToolbar(){
     return verb && time;
   }
   let debTimer=null;
+  let finalizeToken=null; // prevent duplicate finalize actions for same text
   function onInput(){
     const fld = getActiveField();
-    const q=(fld?.value||'');
+    const qRaw=(fld?.value||'');
+    const finalizeNow = hasFinalizePhrase(qRaw);
+    // If finalize phrase present, sanitize it out of the field immediately
+    let q = qRaw;
+    if(finalizeNow && fld){
+      const sanitized = sanitizeFinalizeEverywhere(qRaw);
+      if(sanitized !== qRaw){ fld.value = sanitized; try{ const L=fld.value.length; fld.setSelectionRange(L,L); }catch{} }
+      q = sanitized;
+    }
     // Expand on focus/typing
     setExpanded(true);
     // Auto-open modal when text overflows small bar or is multiline
@@ -205,13 +335,52 @@ export function wireToolbar(){
     clearTimeout(debTimer);
     // Build suggestions
     const items=[];
+    // Detect create-task intent and build draft panel
+    createDraft = parseCreateTask(q);
+    // While in create mode, keep the field showing only the cleaned title (ignore trigger words)
+    if(createDraft && fld){
+      const newVal = sanitizeCreateTitle(createDraft.title||'');
+      if(newVal !== (fld.value||'')){
+        fld.value = newVal;
+        q = newVal;
+        try{ const L=fld.value.length; fld.setSelectionRange(L,L); }catch{}
+      }
+    }
+  function createTaskFromDraft(){
+    if(!createDraft) return;
+    const title=sanitizeCreateTitle(createDraft.title||'Nueva tarea');
+    const subtasks=checklistToSubtasks(createDraft.checklistRaw);
+    const pid=getCurrentProjectId();
+    const init={ title, prio:createDraft.prio||'Med', due:createDraft.due||null, subtasks, status:'To do' };
+    if(pid!==undefined) init.workspaceId=pid;
+    closeDD();
+    try{ if(isSearchModalOpen()) closeSearchModal(); }catch{}
+    // Open dialog to finish creating
+    openTaskDialog(init);
+    // Clear search fields so the command/query does not linger
+    try{
+      const fld = getActiveField();
+      if(fld) fld.value='';
+      if(input) input.value='';
+      finalizeToken=null; createDraft=null;
+    }catch{}
+  }
     if(isCommand(q)){
       items.push({ type:'cmd', label:'Ejecutar comando', kbd:'Enter' });
     }else if(detectTaskIntent(q)){
       items.push({ type:'task', label:`Crear tarea: “${q.trim()}”`, kbd:'Enter' });
     }
     // Placeholder: global search results would go here
-    ddItems = items; renderDD(); if(items.length) openDD(); else closeDD();
+    ddItems = items; renderDD(); if(items.length || createDraft) openDD(); else closeDD();
+
+    // Auto-finalize if phrase present
+    if(createDraft && finalizeNow){
+      const token=q.trim();
+      if(token !== finalizeToken){ finalizeToken=token; createTaskFromDraft(); }
+    } else if(finalizeToken && q.trim()!==finalizeToken) {
+      // reset guard when text changes and finalize phrase no longer present
+      finalizeToken=null;
+    }
     debTimer=setTimeout(()=>{
       // emit global-search for other views
       try{ window.dispatchEvent(new CustomEvent('global-search', { detail:{ q } })); }catch{}
@@ -279,38 +448,63 @@ export function wireToolbar(){
       if(done) return; done=true; clearTimeout(fallback); doTeardown();
     });
   }
+  // If task dialog is cancelled/closed without saving, forget pending creation and clear field
+  try{
+    window.addEventListener('task-dialog:cancelled', ()=>{
+      createDraft=null; finalizeToken=null; const fld=getActiveField(); if(fld) fld.value=''; if(input) input.value=''; closeDD();
+    });
+    window.addEventListener('task-dialog:closed', ()=>{
+      // If not saved (save handler triggers different refresh), ensure we're not stuck in create mode
+      if(createDraft){ createDraft=null; finalizeToken=null; const fld=getActiveField(); if(fld) fld.value=''; if(input) input.value=''; closeDD(); }
+    });
+  }catch{}
   expBtn?.addEventListener('click', ()=>{ if(overlayEl) closeSearchModal(); else openSearchModal(); });
   dd?.addEventListener('click', (e)=>{
-    const el=e.target.closest('.item'); if(!el) return; ddIndex=parseInt(el.dataset.id,10); applySelection();
+    const el=e.target.closest('.item[data-id]'); if(!el) return; ddIndex=parseInt(el.dataset.id,10); if(Number.isNaN(ddIndex)) return; applySelection();
   });
   function applySelection(){ const fld=getActiveField(); const it=ddItems[ddIndex]; if(!it) return; if(it.type==='task'){ try{ window.dispatchEvent(new CustomEvent('suggest-create-task', { detail:{ title:(fld?.value||'').trim() } })); }catch{} } closeDD(); }
   input?.addEventListener('keydown', (e)=>{
     if(e.key==='Escape'){ if(recognizing) stopMic(); closeDD(); input.blur(); return; }
     if(e.key==='ArrowDown'){ if(ddItems.length){ e.preventDefault(); setIndex(ddIndex<0?0:ddIndex+1); } }
     if(e.key==='ArrowUp'){ if(ddItems.length){ e.preventDefault(); setIndex(ddIndex<=0?ddItems.length-1:ddIndex-1); } }
-    if(e.key==='Enter' && !e.shiftKey){ if(ddItems.length){ e.preventDefault(); applySelection(); } }
+    if(e.key==='Enter' && !e.shiftKey){
+      if(createDraft){ e.preventDefault(); createTaskFromDraft(); return; }
+      if(ddItems.length){ e.preventDefault(); applySelection(); }
+    }
   });
   // Microphone (Web Speech API)
   function getSpeech(){
     const S=window.SpeechRecognition||window.webkitSpeechRecognition; return S? new S(): null;
   }
-  function startMic(){
-    if(recognizing) return; rec=getSpeech(); if(!rec){ toast('Tu navegador no soporta dictado'); return; }
-    try{ rec.lang='es-ES'; rec.continuous=true; rec.interimResults=true; }catch{}
-    recognizing=true; micBtn?.classList.add('on'); micBtn?.setAttribute('aria-pressed','true');
+  let recRestartedOnce=false, recPendingSwitch=null, recNoResultTimer=null;
+  function startMicWithLang(lang, isSwitch){
+    if(recognizing && !isSwitch) return;
+    if(rec && isSwitch){ try{ rec.onresult=null; rec.onend=null; rec.stop(); }catch{} }
+    rec=getSpeech(); if(!rec){ toast('Tu navegador no soporta dictado'); return; }
+    try{ rec.lang=lang||guessLangFromText(getActiveField()?.value||'')|| (navigator.language||'es-ES'); rec.continuous=true; rec.interimResults=true; }catch{}
+  recognizing=true; micBtn?.classList.add('on'); micBtn?.setAttribute('aria-pressed','true'); wrap?.classList.add('listening');
     // Initialize dictation buffer with existing content
     try{ recFinalText = (getActiveField()?.value || '').trim(); }catch{ recFinalText=""; }
-  if(dd){ dd.hidden=false; dd.innerHTML='<div class="item" aria-selected="true"><span>🎙️ Escuchando…</span><span class="op-70">Esc para cancelar</span></div>'; getActiveField()?.setAttribute('aria-expanded','true'); }
+    if(dd){ dd.hidden=false; dd.innerHTML='<div class="item" aria-selected="true"><span>🎙️ Escuchando…</span><span class="op-70">Esc para cancelar</span></div>'; getActiveField()?.setAttribute('aria-expanded','true'); }
+    let gotAnyResult=false;
+    // Fallback switch if no results for a bit
+    clearTimeout(recNoResultTimer);
+    recNoResultTimer=setTimeout(()=>{
+      if(!gotAnyResult && !recRestartedOnce){
+        recRestartedOnce=true;
+        const next = (rec.lang||'').startsWith('es') ? 'en-US' : 'es-ES';
+        startMicWithLang(next, true);
+      }
+    }, 1500);
     rec.onresult=(ev)=>{
+      gotAnyResult=true;
       let interim='';
       for(let i=ev.resultIndex; i<ev.results.length; i++){
         const r=ev.results[i];
         const t=(r[0].transcript||'').trim(); if(!t) continue;
         if(r.isFinal){
-          // Append with a separating space if needed
           recFinalText = recFinalText ? (recFinalText.replace(/\s+$/,'') + ' ' + t) : t;
         } else {
-          // show interim without committing
           interim = interim ? (interim + ' ' + t) : t;
         }
       }
@@ -318,15 +512,18 @@ export function wireToolbar(){
       if(fld){
         const combined = (recFinalText + (interim ? (' ' + interim) : '')).replace(/\s{2,}/g,' ').trimStart();
         fld.value = combined;
-        // Move caret to end
         try{ const L=fld.value.length; fld.setSelectionRange(L,L); }catch{}
         onInput();
       }
     };
-  rec.onend=()=>{ recognizing=false; micBtn?.classList.remove('on'); micBtn?.removeAttribute('aria-pressed'); closeDD(); };
+    rec.onend=()=>{
+      clearTimeout(recNoResultTimer);
+      recognizing=false; micBtn?.classList.remove('on'); micBtn?.removeAttribute('aria-pressed'); wrap?.classList.remove('listening'); closeDD();
+    };
     try{ rec.start(); }catch{}
   }
-  function stopMic(){ try{ rec&&rec.stop(); }catch{} recognizing=false; micBtn?.classList.remove('on'); micBtn?.removeAttribute('aria-pressed'); closeDD(); }
+  function startMic(){ recRestartedOnce=false; const guess=guessLangFromText(getActiveField()?.value||''); startMicWithLang(guess, false); }
+  function stopMic(){ try{ rec&&rec.stop(); }catch{} recognizing=false; micBtn?.classList.remove('on'); micBtn?.removeAttribute('aria-pressed'); wrap?.classList.remove('listening'); closeDD(); }
   micBtn?.addEventListener('click', ()=> recognizing? stopMic(): startMic());
 
   // Inicializar y manejar toggle de cerradas
