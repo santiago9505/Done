@@ -158,10 +158,32 @@ export function wireToolbar(){
   const micBtn = document.getElementById('micBtn');
   const expBtn = document.getElementById('expandSearch');
   const dd = document.getElementById('searchDropdown');
-  let ddItems = []; let ddIndex = -1; let recognizing = false; let rec;
-  function setExpanded(on){ if(!wrap) return; wrap.classList.toggle('expanded', !!on); input?.setAttribute('aria-expanded', on?'true':'false'); }
-  function openDD(){ if(!dd) return; dd.hidden=false; input?.setAttribute('aria-expanded','true'); }
-  function closeDD(){ if(!dd) return; dd.hidden=true; input?.setAttribute('aria-expanded','false'); ddIndex=-1; renderDD(); }
+  let ddItems = []; let ddIndex = -1; let recognizing = false; let rec; let recFinalText="";
+  const getActiveField = ()=> document.getElementById('globalSearchML') || input;
+  function autoGrow(ta){ if(!ta) return; ta.style.height='auto'; const max=Math.round(window.innerHeight*0.4); ta.style.height=Math.min(ta.scrollHeight, max)+"px"; }
+  function isSearchModalOpen(){ return !!document.getElementById('searchOverlay'); }
+  function textWidthForInput(txt){
+    try{
+      const el=input; if(!el) return 0; const cs=getComputedStyle(el);
+      const canvas=textWidthForInput._c||(textWidthForInput._c=document.createElement('canvas'));
+      const ctx=canvas.getContext('2d'); if(!ctx) return 0; ctx.font = cs.font || `${cs.fontSize} ${cs.fontFamily}`;
+      return ctx.measureText(txt).width;
+    }catch{ return 0; }
+  }
+  function ensureModalIfOverflow(){
+    if(isSearchModalOpen()) return;
+    const q=(input?.value||''); if(!q) return;
+    if(/\n/.test(q)){ try{ openSearchModal(); }catch{} return; }
+    // Estimate available width inside the small bar
+    const sRight = wrap?.querySelector('.s-right');
+    const leftIcon = wrap?.querySelector('#searchCmd');
+    const avail = Math.max(0, (wrap?.clientWidth||0) - (sRight?.offsetWidth||0) - (leftIcon?.offsetWidth||0) - 32);
+    const w = textWidthForInput(q);
+    if(w > avail*0.96){ try{ openSearchModal(); }catch{} }
+  }
+  function setExpanded(on){ if(!wrap) return; wrap.classList.toggle('expanded', !!on); getActiveField()?.setAttribute('aria-expanded', on?'true':'false'); }
+  function openDD(){ if(!dd) return; dd.hidden=false; getActiveField()?.setAttribute('aria-expanded','true'); }
+  function closeDD(){ if(!dd) return; dd.hidden=true; getActiveField()?.setAttribute('aria-expanded','false'); ddIndex=-1; renderDD(); }
   function renderDD(){ if(!dd) return; dd.innerHTML = ddItems.map((it,i)=>`<div class="item" role="option" aria-selected="${i===ddIndex?'true':'false'}" data-id="${i}"><span>${it.label}</span><span class="op-70">${it.kbd||''}</span></div>`).join(''); }
   function setIndex(i){ ddIndex = Math.max(0, Math.min(ddItems.length-1, i)); renderDD(); const el = dd?.querySelector(`[data-id="${ddIndex}"]`); el?.scrollIntoView({block:'nearest'}); }
   function isCommand(s){ return s.trim().startsWith('>'); }
@@ -174,9 +196,12 @@ export function wireToolbar(){
   }
   let debTimer=null;
   function onInput(){
-    const q=(input?.value||'');
+    const fld = getActiveField();
+    const q=(fld?.value||'');
     // Expand on focus/typing
     setExpanded(true);
+    // Auto-open modal when text overflows small bar or is multiline
+    if(fld===input){ ensureModalIfOverflow(); }
     clearTimeout(debTimer);
     // Build suggestions
     const items=[];
@@ -195,11 +220,70 @@ export function wireToolbar(){
   input?.addEventListener('input', onInput);
   input?.addEventListener('focus', ()=> setExpanded(true));
   input?.addEventListener('blur', ()=> setTimeout(()=>{ setExpanded(false); closeDD(); }, 120));
-  expBtn?.addEventListener('click', ()=> setExpanded(!wrap?.classList.contains('expanded')));
+  // Fullscreen search modal behavior
+  let overlayEl=null, placeholderNode=null, originalParent=null, originalNext=null;
+  function openSearchModal(){
+    if(!wrap || overlayEl) return;
+    originalParent = wrap.parentNode; originalNext = wrap.nextSibling; placeholderNode = document.createComment('searchWrap-placeholder');
+    originalParent.insertBefore(placeholderNode, wrap);
+    overlayEl = document.createElement('div'); overlayEl.id='searchOverlay'; overlayEl.className='search-overlay'; overlayEl.setAttribute('aria-modal','true'); overlayEl.setAttribute('role','dialog');
+    const slot=document.createElement('div'); slot.className='search-modal-slot'; overlayEl.appendChild(slot);
+    document.body.appendChild(overlayEl);
+    document.body.classList.add('search-modal-open');
+    slot.appendChild(wrap);
+    // Create multiline field if not present
+    let ml = wrap.querySelector('#globalSearchML');
+    if(!ml){
+      ml = document.createElement('textarea'); ml.id='globalSearchML'; ml.className='ml-field'; ml.rows=4;
+      ml.placeholder = input?.getAttribute('placeholder')||''; ml.setAttribute('aria-label', input?.getAttribute('aria-label')||'Buscar');
+      ml.value = input?.value || '';
+      const sRight = wrap.querySelector('.s-right'); wrap.insertBefore(ml, sRight||null);
+      ml.addEventListener('input', ()=>{ autoGrow(ml); onInput(); });
+      ml.addEventListener('focus', ()=> setExpanded(true));
+      ml.addEventListener('blur', ()=> setTimeout(()=>{ setExpanded(false); closeDD(); }, 120));
+      ml.addEventListener('keydown', (e)=>{
+        if(e.key==='Escape'){ if(recognizing) stopMic(); closeDD(); ml.blur(); return; }
+        if(e.key==='ArrowDown'){ if(ddItems.length){ e.preventDefault(); setIndex(ddIndex<0?0:ddIndex+1); } }
+        if(e.key==='ArrowUp'){ if(ddItems.length){ e.preventDefault(); setIndex(ddIndex<=0?ddItems.length-1:ddIndex-1); } }
+      });
+    }
+    setExpanded(true);
+    autoGrow(ml);
+    ml?.focus();
+    // Close on outside click
+    overlayEl.addEventListener('mousedown', (e)=>{ if(e.target===overlayEl) closeSearchModal(); });
+    // Close on Esc
+    const onEsc=(e)=>{ if(e.key==='Escape'){ e.preventDefault(); closeSearchModal(); document.removeEventListener('keydown', onEsc, true); } };
+    setTimeout(()=> document.addEventListener('keydown', onEsc, true), 0);
+  }
+  function closeSearchModal(){
+    if(!overlayEl || !placeholderNode || !originalParent) return;
+    // Play closing animation, then teardown
+    try{ overlayEl.classList.add('closing'); }catch{}
+    const doTeardown=()=>{
+      // Sync back value and remove multiline
+      const ml = wrap.querySelector('#globalSearchML'); if(ml && input){ input.value = ml.value; ml.remove(); }
+      // Restore element to original position
+      if(originalNext && originalNext.parentNode===originalParent){ originalParent.insertBefore(wrap, originalNext); }
+      else { originalParent.appendChild(wrap); }
+      placeholderNode.remove(); placeholderNode=null; originalParent=null; originalNext=null;
+      document.body.classList.remove('search-modal-open');
+      overlayEl?.remove(); overlayEl=null;
+      setExpanded(false);
+    };
+    // Prefer waiting for overlay animation end; fallback with timeout
+    let done=false; const fallback=setTimeout(()=>{ if(done) return; done=true; doTeardown(); }, 210);
+    overlayEl.addEventListener('animationend', function handler(e){
+      if(e.target!==overlayEl) return; // only when overlay fade finishes
+      overlayEl.removeEventListener('animationend', handler);
+      if(done) return; done=true; clearTimeout(fallback); doTeardown();
+    });
+  }
+  expBtn?.addEventListener('click', ()=>{ if(overlayEl) closeSearchModal(); else openSearchModal(); });
   dd?.addEventListener('click', (e)=>{
     const el=e.target.closest('.item'); if(!el) return; ddIndex=parseInt(el.dataset.id,10); applySelection();
   });
-  function applySelection(){ const it=ddItems[ddIndex]; if(!it) return; if(it.type==='task'){ try{ window.dispatchEvent(new CustomEvent('suggest-create-task', { detail:{ title:(input?.value||'').trim() } })); }catch{} } closeDD(); }
+  function applySelection(){ const fld=getActiveField(); const it=ddItems[ddIndex]; if(!it) return; if(it.type==='task'){ try{ window.dispatchEvent(new CustomEvent('suggest-create-task', { detail:{ title:(fld?.value||'').trim() } })); }catch{} } closeDD(); }
   input?.addEventListener('keydown', (e)=>{
     if(e.key==='Escape'){ if(recognizing) stopMic(); closeDD(); input.blur(); return; }
     if(e.key==='ArrowDown'){ if(ddItems.length){ e.preventDefault(); setIndex(ddIndex<0?0:ddIndex+1); } }
@@ -214,20 +298,35 @@ export function wireToolbar(){
     if(recognizing) return; rec=getSpeech(); if(!rec){ toast('Tu navegador no soporta dictado'); return; }
     try{ rec.lang='es-ES'; rec.continuous=true; rec.interimResults=true; }catch{}
     recognizing=true; micBtn?.classList.add('on'); micBtn?.setAttribute('aria-pressed','true');
-  if(dd){ dd.hidden=false; dd.innerHTML='<div class="item" aria-selected="true"><span>🎙️ Escuchando…</span><span class="op-70">Esc para cancelar</span></div>'; input?.setAttribute('aria-expanded','true'); }
+    // Initialize dictation buffer with existing content
+    try{ recFinalText = (getActiveField()?.value || '').trim(); }catch{ recFinalText=""; }
+  if(dd){ dd.hidden=false; dd.innerHTML='<div class="item" aria-selected="true"><span>🎙️ Escuchando…</span><span class="op-70">Esc para cancelar</span></div>'; getActiveField()?.setAttribute('aria-expanded','true'); }
     rec.onresult=(ev)=>{
-      let interim=''; let final='';
+      let interim='';
       for(let i=ev.resultIndex; i<ev.results.length; i++){
         const r=ev.results[i];
-        if(r.isFinal) final += r[0].transcript;
-        else interim += r[0].transcript;
+        const t=(r[0].transcript||'').trim(); if(!t) continue;
+        if(r.isFinal){
+          // Append with a separating space if needed
+          recFinalText = recFinalText ? (recFinalText.replace(/\s+$/,'') + ' ' + t) : t;
+        } else {
+          // show interim without committing
+          interim = interim ? (interim + ' ' + t) : t;
+        }
       }
-      const txt=(final||interim).trim(); if(txt){ input.value = txt; onInput(); }
+      const fld=getActiveField();
+      if(fld){
+        const combined = (recFinalText + (interim ? (' ' + interim) : '')).replace(/\s{2,}/g,' ').trimStart();
+        fld.value = combined;
+        // Move caret to end
+        try{ const L=fld.value.length; fld.setSelectionRange(L,L); }catch{}
+        onInput();
+      }
     };
-    rec.onend=()=>{ recognizing=false; micBtn?.classList.remove('on'); micBtn?.removeAttribute('aria-pressed'); };
+  rec.onend=()=>{ recognizing=false; micBtn?.classList.remove('on'); micBtn?.removeAttribute('aria-pressed'); closeDD(); };
     try{ rec.start(); }catch{}
   }
-  function stopMic(){ try{ rec&&rec.stop(); }catch{} recognizing=false; micBtn?.classList.remove('on'); micBtn?.removeAttribute('aria-pressed'); }
+  function stopMic(){ try{ rec&&rec.stop(); }catch{} recognizing=false; micBtn?.classList.remove('on'); micBtn?.removeAttribute('aria-pressed'); closeDD(); }
   micBtn?.addEventListener('click', ()=> recognizing? stopMic(): startMic());
 
   // Inicializar y manejar toggle de cerradas
@@ -257,8 +356,8 @@ export function wireToolbar(){
     if((e.ctrlKey||e.metaKey) && key==='k'){ e.preventDefault(); openCommandPalette(); }
   });
 
-  // Header Command button
-  document.getElementById('openCmd')?.addEventListener('click', ()=> openCommandPalette());
+  // Search icon (magnifier) now opens Command Palette
+  document.getElementById('searchCmd')?.addEventListener('click', ()=> openCommandPalette());
 
   // Logo click → go home
   document.getElementById('btnHome')?.addEventListener('click', ()=>{ if(window.goto) window.goto('home'); else window.location.hash = '#/home'; });
