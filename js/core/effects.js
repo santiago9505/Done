@@ -74,18 +74,19 @@ export function successSound() {
 
 export function confettiBurst(){ 
   const holder=document.getElementById('confetti'); if(!holder) return;
-  const colors=['#34d399','#60a5fa','#fbbf24','#f87171','#a78bfa']; 
+  const colors=['cf-c0','cf-c1','cf-c2','cf-c3','cf-c4']; 
   const N=120; 
   for(let i=0;i<N;i++){ 
     const p=document.createElement('i'); 
-    p.style.left=(Math.random()*100)+'%'; 
-    p.style.background=colors[i%colors.length]; 
-    const delay=(Math.random()*0.4).toFixed(2); 
-    const dur=(1.3+Math.random()*1.4).toFixed(2); 
-    p.style.transform=`translateY(-10px) rotate(${Math.random()*360}deg)`; 
-    p.style.animation=`fall ${dur}s cubic-bezier(.4,.8,.6,1) ${delay}s forwards`; 
+    // position buckets (0..95 in steps of 5)
+    const x = Math.floor(Math.random()*20)*5; 
+    const rotBucket = [0,30,60,90,120,150,180,210,240,270,300,330][Math.floor(Math.random()*12)];
+    const durBucket = 1 + Math.floor(Math.random()*10); // 1..10 maps to 1.30..2.74s in CSS
+    const delayBucket = Math.floor(Math.random()*9); // 0..8 maps to 0..0.4s in CSS
+    p.className = `cf cf-x${x} cf-rot${rotBucket} ${colors[i%colors.length]} cf-dur${durBucket} cf-delay${delayBucket}`;
     holder.appendChild(p); 
-    setTimeout(()=>p.remove(), (parseFloat(delay)+parseFloat(dur))*1000+100);
+    // conservative remove timeout (max duration 2.74s + max delay 0.4s)
+    setTimeout(()=>p.remove(), 3300);
   } 
   const chip=document.getElementById('xpChip'); 
   chip?.animate([{transform:'scale(1)'},{transform:'scale(1.12)'},{transform:'scale(1)'}],{duration:450,easing:'ease-out'}); 

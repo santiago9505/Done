@@ -118,8 +118,10 @@ export function wireToolbar(){
     const r = themeBtn.getBoundingClientRect();
     const menu = document.createElement('div');
     menu.id='themeMenu';
-    menu.style.cssText = `position:fixed; left:${Math.round(r.left)}px; top:${Math.round(r.bottom+8)}px; background:var(--panel); border:1px solid var(--hairline); border-radius:10px; box-shadow:var(--elev-1); padding:6px; z-index:10001; display:grid; gap:6px;`;
-    const mk = (id,label)=>{ const b=document.createElement('button'); b.className='btn'; b.style.padding='8px 10px'; b.textContent=label; b.addEventListener('click',()=>{ setThemeMode(id); close(); }); return b; };
+    menu.className = 'menu-popup';
+    menu.style.left = Math.round(r.left) + 'px';
+    menu.style.top = Math.round(r.bottom+8) + 'px';
+    const mk = (id,label)=>{ const b=document.createElement('button'); b.className='btn'; b.textContent=label; b.addEventListener('click',()=>{ setThemeMode(id); close(); }); return b; };
     const close = ()=> menu.remove();
     menu.appendChild(mk('light','☀️  Claro'));
     menu.appendChild(mk('dark','🌙  Oscuro'));
@@ -150,6 +152,83 @@ export function wireToolbar(){
   });
 
   document.getElementById('globalSearch')?.addEventListener('input', refreshCurrentView);
+  // Hybrid command/search input behaviors
+  const wrap = document.getElementById('searchWrap');
+  const input = document.getElementById('globalSearch');
+  const micBtn = document.getElementById('micBtn');
+  const expBtn = document.getElementById('expandSearch');
+  const dd = document.getElementById('searchDropdown');
+  let ddItems = []; let ddIndex = -1; let recognizing = false; let rec;
+  function setExpanded(on){ if(!wrap) return; wrap.classList.toggle('expanded', !!on); input?.setAttribute('aria-expanded', on?'true':'false'); }
+  function openDD(){ if(!dd) return; dd.hidden=false; input?.setAttribute('aria-expanded','true'); }
+  function closeDD(){ if(!dd) return; dd.hidden=true; input?.setAttribute('aria-expanded','false'); ddIndex=-1; renderDD(); }
+  function renderDD(){ if(!dd) return; dd.innerHTML = ddItems.map((it,i)=>`<div class="item" role="option" aria-selected="${i===ddIndex?'true':'false'}" data-id="${i}"><span>${it.label}</span><span class="op-70">${it.kbd||''}</span></div>`).join(''); }
+  function setIndex(i){ ddIndex = Math.max(0, Math.min(ddItems.length-1, i)); renderDD(); const el = dd?.querySelector(`[data-id="${ddIndex}"]`); el?.scrollIntoView({block:'nearest'}); }
+  function isCommand(s){ return s.trim().startsWith('>'); }
+  function detectTaskIntent(s){
+    // simple heuristic: verb + time keyword
+    const txt=s.toLowerCase();
+    const verb = /(hacer|crear|recordar|anotar|escribir|preparar|planear|comprar|llamar|enviar|revisar|terminar)/.test(txt);
+    const time = /(hoy|mañana|pasado|\b(lunes|martes|miércoles|jueves|viernes|sábado|domingo)\b|\b\d{1,2}(am|pm)\b|\b\d{1,2}:\d{2}\b)/.test(txt);
+    return verb && time;
+  }
+  let debTimer=null;
+  function onInput(){
+    const q=(input?.value||'');
+    // Expand on focus/typing
+    setExpanded(true);
+    clearTimeout(debTimer);
+    // Build suggestions
+    const items=[];
+    if(isCommand(q)){
+      items.push({ type:'cmd', label:'Ejecutar comando', kbd:'Enter' });
+    }else if(detectTaskIntent(q)){
+      items.push({ type:'task', label:`Crear tarea: “${q.trim()}”`, kbd:'Enter' });
+    }
+    // Placeholder: global search results would go here
+    ddItems = items; renderDD(); if(items.length) openDD(); else closeDD();
+    debTimer=setTimeout(()=>{
+      // emit global-search for other views
+      try{ window.dispatchEvent(new CustomEvent('global-search', { detail:{ q } })); }catch{}
+    }, 250);
+  }
+  input?.addEventListener('input', onInput);
+  input?.addEventListener('focus', ()=> setExpanded(true));
+  input?.addEventListener('blur', ()=> setTimeout(()=>{ setExpanded(false); closeDD(); }, 120));
+  expBtn?.addEventListener('click', ()=> setExpanded(!wrap?.classList.contains('expanded')));
+  dd?.addEventListener('click', (e)=>{
+    const el=e.target.closest('.item'); if(!el) return; ddIndex=parseInt(el.dataset.id,10); applySelection();
+  });
+  function applySelection(){ const it=ddItems[ddIndex]; if(!it) return; if(it.type==='task'){ try{ window.dispatchEvent(new CustomEvent('suggest-create-task', { detail:{ title:(input?.value||'').trim() } })); }catch{} } closeDD(); }
+  input?.addEventListener('keydown', (e)=>{
+    if(e.key==='Escape'){ if(recognizing) stopMic(); closeDD(); input.blur(); return; }
+    if(e.key==='ArrowDown'){ if(ddItems.length){ e.preventDefault(); setIndex(ddIndex<0?0:ddIndex+1); } }
+    if(e.key==='ArrowUp'){ if(ddItems.length){ e.preventDefault(); setIndex(ddIndex<=0?ddItems.length-1:ddIndex-1); } }
+    if(e.key==='Enter' && !e.shiftKey){ if(ddItems.length){ e.preventDefault(); applySelection(); } }
+  });
+  // Microphone (Web Speech API)
+  function getSpeech(){
+    const S=window.SpeechRecognition||window.webkitSpeechRecognition; return S? new S(): null;
+  }
+  function startMic(){
+    if(recognizing) return; rec=getSpeech(); if(!rec){ toast('Tu navegador no soporta dictado'); return; }
+    try{ rec.lang='es-ES'; rec.continuous=true; rec.interimResults=true; }catch{}
+    recognizing=true; micBtn?.classList.add('on'); micBtn?.setAttribute('aria-pressed','true');
+  if(dd){ dd.hidden=false; dd.innerHTML='<div class="item" aria-selected="true"><span>🎙️ Escuchando…</span><span class="op-70">Esc para cancelar</span></div>'; input?.setAttribute('aria-expanded','true'); }
+    rec.onresult=(ev)=>{
+      let interim=''; let final='';
+      for(let i=ev.resultIndex; i<ev.results.length; i++){
+        const r=ev.results[i];
+        if(r.isFinal) final += r[0].transcript;
+        else interim += r[0].transcript;
+      }
+      const txt=(final||interim).trim(); if(txt){ input.value = txt; onInput(); }
+    };
+    rec.onend=()=>{ recognizing=false; micBtn?.classList.remove('on'); micBtn?.removeAttribute('aria-pressed'); };
+    try{ rec.start(); }catch{}
+  }
+  function stopMic(){ try{ rec&&rec.stop(); }catch{} recognizing=false; micBtn?.classList.remove('on'); micBtn?.removeAttribute('aria-pressed'); }
+  micBtn?.addEventListener('click', ()=> recognizing? stopMic(): startMic());
 
   // Inicializar y manejar toggle de cerradas
   const closedChk = document.getElementById('toggleClosed');
@@ -220,6 +299,9 @@ export function wireToolbar(){
       }catch{}
     }, 60);
   });
+
+  // AI orb → open drawer
+  document.getElementById('aiButton')?.addEventListener('click', ()=> openAIDrawer());
 }
 
 // Basic user menu open/close and Esc handling
@@ -238,12 +320,26 @@ window.addEventListener('keydown', (e)=>{
   }
 });
 
+// User menu keyboard navigation
+document.getElementById('userMenuBtn')?.addEventListener('keydown', (e)=>{
+  const menu = document.getElementById('userDropdown'); if(!menu) return;
+  if(e.key==='ArrowDown'){ e.preventDefault(); if(menu.hidden){ menu.hidden=false; } const first=menu.querySelector('button'); first?.focus(); }
+});
+document.getElementById('userDropdown')?.addEventListener('keydown', (e)=>{
+  const items = Array.from(e.currentTarget.querySelectorAll('button'));
+  const i = items.indexOf(document.activeElement);
+  if(e.key==='ArrowDown'){ e.preventDefault(); const n=items[(i+1)%items.length]; n?.focus(); }
+  if(e.key==='ArrowUp'){ e.preventDefault(); const n=items[(i-1+items.length)%items.length]; n?.focus(); }
+  if(e.key==='Escape'){ e.preventDefault(); const menu=e.currentTarget; menu.hidden=true; document.getElementById('userMenuBtn')?.focus(); }
+  if(e.key==='Enter'){ const btn=document.activeElement; if(btn?.click) btn.click(); }
+});
+
 function toast(msg){ 
   const t=document.createElement('div'); 
   t.textContent=msg; 
-  t.style.cssText='position:fixed;bottom:16px;right:16px;background:var(--panel);border:1px solid var(--border);box-shadow:var(--shadow);padding:10px 14px;border-radius:12px;z-index:99999;max-width:360px'; 
+  t.className='toast';
   document.body.appendChild(t); 
-  setTimeout(()=>{t.style.opacity='0'; t.style.transform='translateY(6px)'; t.style.transition='all .3s'}, 2000); 
+  setTimeout(()=> t.classList.add('fade-out'), 2000); 
   setTimeout(()=>t.remove(), 2500); 
 }
 
@@ -276,17 +372,17 @@ function openCommandPalette(){
   overlay.id = 'commandPalette';
   overlay.setAttribute('role','dialog');
   overlay.setAttribute('aria-modal','true');
-  overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;display:flex;align-items:flex-start;justify-content:center;background:rgba(0,0,0,.35)';
+  overlay.className = 'cmd-overlay';
 
   const box = document.createElement('div');
-  box.style.cssText = 'margin-top:12vh;min-width:min(720px,94vw);background:var(--panel);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);overflow:hidden';
+  box.className = 'cmd-box';
 
   const input = document.createElement('input');
   input.type='search'; input.placeholder='Escribe un comando…'; input.setAttribute('aria-label','Comando');
-  input.style.cssText = 'width:100%;padding:12px 14px;background:var(--panel-2);border:none;border-bottom:1px solid var(--border);color:var(--text);font-size:15px;outline:none';
+  input.className = 'cmd-input';
 
   const list = document.createElement('div');
-  list.style.cssText = 'max-height:50vh;overflow:auto;padding:6px';
+  list.className = 'cmd-list';
 
   const cmds = buildCommands();
   let mode = 'commands'; // 'commands' | 'workspaces'
@@ -315,7 +411,7 @@ function openCommandPalette(){
   function renderList(){
     if(mode==='commands'){
       list.innerHTML = filtered.map((c,i)=> `
-        <button data-id="${c.id}" style="display:flex;gap:8px;align-items:center;width:100%;text-align:left;background:transparent;border:1px solid var(--hairline);color:var(--text);padding:8px 10px;border-radius:10px;cursor:pointer;margin:4px 0;${i===idx?'outline:2px solid var(--primary);outline-offset:1px;background:rgba(255,255,255,.03)':''}">
+        <button data-id="${c.id}" class="cmd-item ${i===idx?'active':''}">
           <span>${c.title}</span>
         </button>
       `).join('');
@@ -325,9 +421,9 @@ function openCommandPalette(){
         const isCurrent = (state.workspaceFilter===w.id);
         const mark = isCurrent ? '✓' : '';
         return `
-          <button data-wid="${w.id}" style="display:flex;gap:8px;align-items:center;width:100%;justify-content:space-between;text-align:left;background:transparent;border:1px solid var(--hairline);color:var(--text);padding:8px 10px;border-radius:10px;cursor:pointer;margin:4px 0;${active?'outline:2px solid var(--primary);outline-offset:1px;background:rgba(255,255,255,.03)':''}">
+          <button data-wid="${w.id}" class="cmd-item justify-between ${active?'active':''}">
             <span>${w.title}</span>
-            <span style="opacity:.7">${mark}</span>
+            <span class="op-70">${mark}</span>
           </button>`;
       }).join('');
     }
@@ -421,4 +517,96 @@ function openCommandPalette(){
   document.body.appendChild(overlay);
   applyFilter();
   setTimeout(()=> input.focus(), 0);
+}
+
+// ===================== AI Drawer (Assistant) =====================
+function openAIDrawer(prefill){
+  if(document.getElementById('aiOverlay')) return; // prevent duplicates
+  const overlay=document.createElement('div'); overlay.id='aiOverlay'; overlay.className='ai-overlay'; overlay.setAttribute('aria-hidden','false');
+  overlay.innerHTML = `
+    <aside id="aiDrawer" class="ai-drawer" role="dialog" aria-modal="true" aria-labelledby="aiTitle">
+      <header class="ai-head">
+        <h3 id="aiTitle">AI Copilot</h3>
+        <div class="spacer"></div>
+        <button class="icon-btn" id="aiMicBtn" aria-pressed="false" aria-label="Dictado">🎙️</button>
+        <button class="icon-btn" id="aiCloseBtn" aria-label="Cerrar">✕</button>
+      </header>
+      <div class="ai-quick">
+        <button class="chip" data-q="checklist">Crear tarea de lo que diga</button>
+        <button class="chip" data-q="resumen">Resumir mi día</button>
+        <button class="chip" data-q="semana">Plan de semana</button>
+      </div>
+      <div class="ai-body" id="aiBody" tabindex="0" aria-live="polite"></div>
+      <form class="ai-input" id="aiForm">
+        <textarea id="aiText" rows="1" placeholder="Escribe… (Enter envía, Shift+Enter nueva línea)"></textarea>
+        <button class="btn primary" id="aiSend" type="submit">Enviar</button>
+      </form>
+    </aside>`;
+  document.body.appendChild(overlay);
+  const drawer=overlay.querySelector('#aiDrawer');
+  const aiText=overlay.querySelector('#aiText');
+  const aiBody=overlay.querySelector('#aiBody');
+  const aiForm=overlay.querySelector('#aiForm');
+  const closeBtn=overlay.querySelector('#aiCloseBtn');
+  const micBtn=overlay.querySelector('#aiMicBtn');
+  // Slide-in
+  requestAnimationFrame(()=> drawer.classList.add('show'));
+  // Persisted session
+  const storeKey='clickap.ai.session';
+  function loadSession(){ try{ return JSON.parse(localStorage.getItem(storeKey)||'[]'); }catch{ return []; } }
+  function saveSession(arr){ try{ localStorage.setItem(storeKey, JSON.stringify(arr.slice(-50))); }catch{} }
+  function renderSession(){ const msgs=loadSession(); aiBody.innerHTML = msgs.map(m=>`<div class="msg ${m.role}"><div class="bubble">${escapeHtmlLite(m.text)}</div></div>`).join(''); aiBody.scrollTop=aiBody.scrollHeight; }
+  function append(role,text){ const arr=loadSession(); arr.push({role,text,ts:Date.now()}); saveSession(arr); renderSession(); }
+  function escapeHtmlLite(s){ return (s||'').replace(/[&<>]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+  renderSession();
+  if(prefill){ aiText.value=prefill; }
+  // Context collector
+  function currentContext(){
+    const route = (window.location.hash||'').replace(/^#\/?/,'').split(/[?#]/)[0].split('/')[0]||'home';
+    return { route, workspace: (window.state&&window.state.workspaceFilter)||'all' };
+  }
+  // Submit flow
+  aiForm.addEventListener('submit', (e)=>{
+    e.preventDefault(); const val=aiText.value.trim(); if(!val) return; append('user', val);
+    const ctx=currentContext();
+    try{ window.dispatchEvent(new CustomEvent('ai:submit', { detail:{ text: val, voice: aiRecActive, context: ctx } })); }catch{}
+    aiText.value=''; aiText.focus();
+  });
+  // Quick chips
+  overlay.querySelectorAll('.ai-quick .chip').forEach(btn=> btn.addEventListener('click', ()=>{
+    const kind=btn.getAttribute('data-q');
+    if(kind==='checklist'){ aiText.value = 'Crea subtareas/checklist para: ' + (aiText.value||'…'); }
+    if(kind==='resumen'){ aiText.value = 'Resume mi día con próximos pasos.'; }
+    if(kind==='semana'){ aiText.value = 'Planifica la semana con 3 objetivos y tareas clave.'; }
+    aiText.focus();
+  }));
+  // Close handlers
+  function close(){ drawer.classList.remove('show'); setTimeout(()=> overlay.remove(), 180); try{ window.dispatchEvent(new CustomEvent('ai:close')); }catch{} }
+  closeBtn.addEventListener('click', close);
+  overlay.addEventListener('mousedown', (e)=>{ if(e.target===overlay) close(); });
+  window.addEventListener('keydown', onEsc, true);
+  function onEsc(e){ if(e.key==='Escape'){ e.preventDefault(); stopAiMic(); close(); window.removeEventListener('keydown', onEsc, true); } }
+  // Focus trap
+  const focusables=()=> Array.from(drawer.querySelectorAll('button, [href], input, textarea, select, [tabindex]:not([tabindex="-1"])')).filter(el=>!el.hasAttribute('disabled'));
+  overlay.addEventListener('keydown', (e)=>{
+    if(e.key!=='Tab') return; const els=focusables(); if(!els.length) return; const first=els[0], last=els[els.length-1];
+    if(e.shiftKey && document.activeElement===first){ e.preventDefault(); last.focus(); }
+    else if(!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); }
+  });
+  // Voice (panel-only)
+  let aiRec, aiRecActive=false;
+  function aiGetSpeech(){ const S=window.SpeechRecognition||window.webkitSpeechRecognition; return S? new S(): null; }
+  function startAiMic(){ if(aiRecActive) return; aiRec=aiGetSpeech(); if(!aiRec){ toast('Tu navegador no soporta dictado'); return; }
+    try{ aiRec.lang='es-ES'; aiRec.continuous=true; aiRec.interimResults=true; }catch{}
+    aiRecActive=true; micBtn.classList.add('on'); micBtn.setAttribute('aria-pressed','true');
+    append('system','🎙️ Escuchando…');
+    aiRec.onresult=(ev)=>{ let interim=''; let final=''; for(let i=ev.resultIndex;i<ev.results.length;i++){ const r=ev.results[i]; if(r.isFinal) final+=r[0].transcript; else interim+=r[0].transcript; } const txt=(final||interim).trim(); if(txt){ aiText.value=txt; aiText.dispatchEvent(new Event('input')); } };
+    aiRec.onend=()=>{ aiRecActive=false; micBtn.classList.remove('on'); micBtn.removeAttribute('aria-pressed'); };
+    try{ aiRec.start(); }catch{}
+  }
+  function stopAiMic(){ try{ aiRec&&aiRec.stop(); }catch{} aiRecActive=false; micBtn.classList.remove('on'); micBtn.removeAttribute('aria-pressed'); }
+  micBtn.addEventListener('click', ()=> aiRecActive? stopAiMic(): startAiMic());
+  // Autofocus
+  setTimeout(()=>{ aiText.focus(); }, 50);
+  try{ window.dispatchEvent(new CustomEvent('ai:open')); }catch{}
 }

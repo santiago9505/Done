@@ -54,20 +54,27 @@ export function renderSummary(){
 
   host.innerHTML = `
     <div class="cards">
-      <div class="card"><div style="font-size:12px;color:var(--muted)">Tareas totales</div><div style="font-size:28px;font-weight:800">${(state.tasks||[]).length}</div></div>
-      <div class="card"><div style="font-size:12px;color:var(--muted)">Racha</div><div style="font-size:28px;font-weight:800">${state.streak||0} días</div></div>
-      <div class="card"><div style="font-size:12px;color:var(--muted)">Sprint points</div><div class="chip">Día: ${ptsDay}</div><div class="chip">Semana: ${ptsWeek}</div><div class="chip">Mes: ${ptsMonth}</div><div class="chip">Año: ${ptsYear}</div></div>
-      <div class="card"><div style="font-size:12px;color:var(--muted)">Vista</div><div class="seg"><button class="${summaryMode==='days'?'btn primary':'btn'}" data-mode="days">Días</button><button class="${summaryMode==='weeks'?'btn primary':'btn'}" data-mode="weeks">Semanas</button><button class="${summaryMode==='months'?'btn primary':'btn'}" data-mode="months">Meses</button></div></div>
+      <div class="card"><div class="text-12 muted">Tareas totales</div><div class="text-28 fw-700">${(state.tasks||[]).length}</div></div>
+      <div class="card"><div class="text-12 muted">Racha</div><div class="text-28 fw-700">${state.streak||0} días</div></div>
+      <div class="card"><div class="text-12 muted">Sprint points</div><div class="chip">Día: ${ptsDay}</div><div class="chip">Semana: ${ptsWeek}</div><div class="chip">Mes: ${ptsMonth}</div><div class="chip">Año: ${ptsYear}</div></div>
+      <div class="card"><div class="text-12 muted">Vista</div><div class="seg"><button class="${summaryMode==='days'?'btn primary':'btn'}" data-mode="days">Días</button><button class="${summaryMode==='weeks'?'btn primary':'btn'}" data-mode="weeks">Semanas</button><button class="${summaryMode==='months'?'btn primary':'btn'}" data-mode="months">Meses</button></div></div>
     </div>
-    <div class="card" style="margin-top:12px">
-      <div style="font-weight:700;margin-bottom:8px">Puntos (${summaryMode})</div>
-      <div style="display:grid;grid-template-columns:repeat(${data.length},1fr);gap:10px;align-items:end;min-height:180px">
-        ${data.map(d=>`<div class="bar" title="${d.pts}" style="height:${10+ d.pts*12}px;${d.isToday?'outline:2px solid var(--accent);':''}">
-            <div class="tooltip">${d.cnt} completadas · ${d.pts} pt</div>
-        </div>`).join('')}
+    <div class="card mt-12">
+      <div class="fw-700 mb-8">Puntos (${summaryMode})</div>
+  <div class="bars-grid" data-cols="${data.length}">
+        ${(() => {
+          const max = Math.max(1, ...data.map(d=>d.pts));
+          const toLevel = (v)=> Math.max(0, Math.min(10, Math.round((v/max)*10)));
+          return data.map(d=>{
+            const lv = toLevel(d.pts);
+            return `<div class="bar h-lv${lv} ${d.isToday?'today':''}" title="${d.pts}">
+              <div class="tooltip">${d.cnt} completadas · ${d.pts} pt</div>
+            </div>`;
+          }).join('');
+        })()}
       </div>
-      <div style="display:grid;grid-template-columns:repeat(${data.length},1fr);gap:10px;margin-top:6px;color:var(--muted);font-size:12px">
-        ${data.map(d=>`<div style="text-align:center">${d.label}</div>`).join('')}
+  <div class="labels-grid muted text-12 mt-6" data-cols="${data.length}">
+        ${data.map(d=>`<div class="text-center">${d.label}</div>`).join('')}
       </div>
     </div>`;
 

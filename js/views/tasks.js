@@ -68,7 +68,7 @@ export function renderTasksList(){
     }
     sub.innerHTML = `
       ${ctx}
-      <label class="r" style="gap:6px"><input type="checkbox" id="sbShowClosed" ${state.settings?.showClosed?'checked':''}/> Mostrar cerradas</label>
+      <label class="r gap-6"><input type="checkbox" id="sbShowClosed" ${state.settings?.showClosed?'checked':''}/> Mostrar cerradas</label>
       <label>Ordenar:</label>
       <select id="sbSortBy">
         <option value="due" ${state.settings?.sortBy==='due'?'selected':''}>Vence</option>
@@ -101,9 +101,9 @@ export function renderTasksList(){
     .sort(globalTaskComparator);
 
   host.innerHTML = `<div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+    <div class="r justify-between gap-10 wrap">
       <h3 class="h">Lista de tareas (${rows.length})</h3>
-      <div class="r" style="gap:10px">
+      <div class="r gap-10">
         <label>Agrupar por:</label>
         <select id="groupTasksSel">
           <option value="none" ${state.groupTasks==='none'?'selected':''}>Nada</option>
@@ -111,7 +111,7 @@ export function renderTasksList(){
         </select>
       </div>
     </div>
-    <div id="tableHost" style="margin-top:8px"></div>
+    <div id="tableHost" class="mt-8"></div>
   </div>`;
 
   host.querySelector('#groupTasksSel').addEventListener('change',(e)=>{
@@ -123,30 +123,30 @@ export function renderTasksList(){
     const isSub = !!st;
     switch(c){
           case 'title':{
-            const base = 'padding:8px;border-bottom:1px solid var(--border)';
+            const base = '';
             if(isSub){
-              return `<td data-open-sub="${t.id}:${st.id}" style="${base};padding-left:24px;cursor:pointer;text-decoration:underline">${escapeHtml(st.title)}</td>`;
+              return `<td data-open-sub="${t.id}:${st.id}" class="pl-24 clickable underline">${escapeHtml(st.title)}</td>`;
             }
             const hasSubs = Array.isArray(t.subtasks) && t.subtasks.length>0;
             const arrow = hasSubs ? (collapsed.has(t.id) ? '▸' : '▾') : '';
-            const arrowHtml = hasSubs ? `<span data-toggle="${t.id}" title="Mostrar/ocultar subtareas" style="display:inline-block;width:16px;text-align:center;margin-right:6px;cursor:pointer;user-select:none">${arrow}</span>` : '';
-            return `<td data-open="${t.id}" style="${base};cursor:pointer;text-decoration:underline">${arrowHtml}<span>${escapeHtml(t.title)}</span></td>`;
+            const arrowHtml = hasSubs ? `<span data-toggle="${t.id}" title="Mostrar/ocultar subtareas" class="caret">${arrow}</span>` : '';
+            return `<td data-open="${t.id}" class="clickable underline">${arrowHtml}<span>${escapeHtml(t.title)}</span></td>`;
           }
           case 'status':{
             const val = isSub ? (st.status || (st.done?FINAL_STATUS:'To do')) : t.status;
             const dataSub = isSub ? `data-sub="${t.id}:${st.id}"` : '';
-            return `<td style="padding:8px;border-bottom:1px solid var(--border)">
+            return `<td>
               <select data-field="status" ${dataSub}>${state.columns.map(x=>`<option ${val===x?'selected':''}>${x}</option>`).join('')}</select>
             </td>`;
           }
           case 'workspace':{
-            return `<td style="padding:8px;border-bottom:1px solid var(--border)">${escapeHtml(getProjectNameById(t.workspaceId))}</td>`;
+            return `<td>${escapeHtml(getProjectNameById(t.workspaceId))}</td>`;
           }
           case 'prio':{
             if(isSub){
-              return `<td style="padding:8px;border-bottom:1px solid var(--border)"><span class="chip">${t.prio||'Med'}</span></td>`;
+              return `<td><span class="chip">${t.prio||'Med'}</span></td>`;
             }
-            return `<td style="padding:8px;border-bottom:1px solid var(--border)">
+            return `<td>
               <select data-field="prio">
                 <option ${t.prio==='Low'?'selected':''}>Low</option>
                 <option ${t.prio==='Med'?'selected':''}>Med</option>
@@ -157,32 +157,32 @@ export function renderTasksList(){
           case 'start':{
             const val = isSub ? (st.startAt||null) : (t.startAt||null);
             const dataSub = isSub ? `data-sub="${t.id}:${st.id}"` : '';
-            return `<td style="padding:8px;border-bottom:1px solid var(--border)">
+            return `<td>
               <input type="datetime-local" data-field="start" ${dataSub} value="${val ? toLocalDatetimeInput(val) : ''}"/>
             </td>`;
           }
           case 'due':{
             const val = isSub ? (st.due||null) : (t.due||null);
             const dataSub = isSub ? `data-sub="${t.id}:${st.id}"` : '';
-            return `<td style="padding:8px;border-bottom:1px solid var(--border)">
+            return `<td>
               <input type="datetime-local" data-field="due" ${dataSub} value="${val ? toLocalDatetimeInput(val) : ''}"/>
             </td>`;
           }
           case 'tags':{
             const tags = (t.tags||[]);
-            return `<td style="padding:8px;border-bottom:1px solid var(--border)">${tags.map(x=>'<span class="tag">#'+escapeHtml(x)+'</span>').join('')}</td>`;
+            return `<td>${tags.map(x=>'<span class="tag">#'+escapeHtml(x)+'</span>').join('')}</td>`;
           }
           case 'points':{
             const canEditParent = !(t.subtasks&&t.subtasks.length);
             const value = isSub ? (st.points||0) : (t.points||0);
             const dataSub = isSub ? `data-sub="${t.id}:${st.id}"` : '';
             const disabled = isSub ? '' : (canEditParent? '' : 'disabled title="Sumado desde subtareas"');
-            return `<td style="padding:8px;border-bottom:1px solid var(--border)">
-              <input type="number" min="0" step="1" data-field="points" ${dataSub} value="${value}" style="width:80px" ${disabled}/>
+            return `<td>
+              <input type="number" min="0" step="1" data-field="points" ${dataSub} value="${value}" class="w-80" ${disabled}/>
             </td>`;
           }
           default:
-            return `<td style="padding:8px;border-bottom:1px solid var(--border)"></td>`;
+            return `<td></td>`;
         }
   }
 
@@ -196,23 +196,23 @@ export function renderTasksList(){
     const headHtml = cols.map(c=>{
   const isActive = state.settings?.sortBy === (c==='start'?'start': c==='due'?'due': c==='prio'?'priority': c==='points'?'points': c==='workspace'?'workspace': c==='title'?'title':'updated');
       const caret = isActive ? (state.settings?.sortDir==='asc'?'↑':'↓') : '';
-      const clickable = sortables.has(c) ? `data-sort="${c}" style="cursor:pointer"` : '';
-      return `<th ${clickable} style="text-align:left;padding:8px;border-bottom:1px solid var(--border)">${labels[c]||c} ${caret}</th>`;
+      const clickable = sortables.has(c) ? `data-sort="${c}" class="clickable"` : '';
+      return `<th ${clickable}>${labels[c]||c} ${caret}</th>`;
     }).join('');
-    return `<div style="overflow:auto; max-height:70vh">
-      <table class="grid" style="width:100%">
-        <thead><tr>${headHtml}<th style="width:80px"></th></tr></thead>
+    return `<div class="scroll-area maxh-70">
+      <table class="grid">
+        <thead><tr>${headHtml}<th class="w-80"></th></tr></thead>
         <tbody>
           ${list.map(t=>{
             const taskRow = `<tr data-id="${t.id}" class="${t.status===FINAL_STATUS?'closed':''}">
               ${cols.map(c=>cellHtml(c,t,null)).join('')}
-              <td style="padding:8px;border-bottom:1px solid var(--border)"><button class="btn ghost" data-addsub="${t.id}" title="Añadir subtarea">＋</button></td>
+              <td><button class="btn ghost" data-addsub="${t.id}" title="Añadir subtarea">＋</button></td>
             </tr>`;
             const isCollapsed = collapsed.has(t.id);
             const subRows = isCollapsed ? '' : (t.subtasks||[]).map(st=>`
               <tr data-id="${t.id}" data-sub="${t.id}:${st.id}" class="${(st.status===FINAL_STATUS || st.done)?'closed':''}">
                 ${cols.map(c=>cellHtml(c,t,st)).join('')}
-                <td style="padding:8px;border-bottom:1px solid var(--border)"></td>
+                <td></td>
               </tr>
             `).join('');
             return taskRow + subRows;
@@ -226,7 +226,7 @@ export function renderTasksList(){
   if(state.groupTasks==='tag'){
     const byTag = new Map();
     rows.forEach(t=>{ const tg=(t.tags&&t.tags.length?t.tags[0]:'No tag'); if(!byTag.has(tg)) byTag.set(tg,[]); byTag.get(tg).push(t); });
-    tableHost.innerHTML = Array.from(byTag.entries()).map(([tg,list])=> `<div class="card" style="margin-top:8px"><h3 class="h">#${tg}</h3>${tableFor(list)}</div>`).join('');
+    tableHost.innerHTML = Array.from(byTag.entries()).map(([tg,list])=> `<div class="card mt-8"><h3 class="h">#${tg}</h3>${tableFor(list)}</div>`).join('');
   }else{
     tableHost.innerHTML = tableFor(rows);
   }

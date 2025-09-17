@@ -73,28 +73,28 @@ export function renderHome(){
 
   // UI
   const focusPanel = `
-    <div class="card" style="margin-bottom:12px">
-      <div style="display:flex;justify-content:space-between;align-items:center">
+    <div class="card mb-12">
+      <div class="r justify-between items-center">
         <h3 class="h">Hoy, enfócate en…</h3>
-        <label class="r" style="gap:6px"><input type="checkbox" id="toggleClosedHome" ${state.settings?.showClosed?'checked':''}/> Mostrar cerradas</label>
+        <label class="r gap-6"><input type="checkbox" id="toggleClosedHome" ${state.settings?.showClosed?'checked':''}/> Mostrar cerradas</label>
       </div>
-      <div class="r" style="gap:8px;flex-wrap:wrap;margin:6px 0 8px 0">
+      <div class="r gap-8 wrap mt-6 mb-8">
         <span class="chip">Hoy: ${kpiToday}</span>
         <span class="chip">Atrasadas: ${kpiOver}</span>
         <span class="chip">Reuniones: ${kpiMeet}</span>
       </div>
-      <div style="color:var(--muted)">${reco}</div>
+      <div class="muted">${reco}</div>
     </div>`;
 
   const left=`${focusPanel}<div class="card"><h3 class="h">My Work</h3>
-    ${overdueList.length?`<div style="margin-top:6px"><div style="font-weight:700;margin-bottom:6px">Overdue</div>
+    ${overdueList.length?`<div class="mt-6"><div class="fw-700 mb-6">Overdue</div>
       ${overdueList.map(it=>{
         const t=it.t; const st=it.st; const isSub=it.kind==='sub';
         const title=isSub?st.title:t.title; const prio=t.prio||'Med'; const due=it.due; const pts=isSub?(parseInt(st.points||'0',10)||0):displayPoints(t);
         const tags=(t.tags||[]).slice(0,3); const indent=isSub?'padding-left:18px':'';
         const openAttr = isSub ? `data-open-sub="${t.id}:${st.id}"` : `data-open="${t.id}"`;
         const closeBtn = isSub ? `<button class="btn success" data-close-sub="${t.id}:${st.id}">✔</button>` : `<button class="btn success" data-close="${t.id}">✔</button>`;
-        return `<div class="task over" style="cursor:default;${indent};background:rgba(248,113,113,.08);border-style:dashed;border-color:rgba(248,113,113,.25)">
+        return `<div class="task over static ${isSub?'pl-18':''}">
           <header><h4 ${openAttr}>${escapeHtml(title)}</h4><div class="icons">${closeBtn}</div></header>
           <div class="meta">
             <span class="pill ${prio==='High'?'prio-high':prio==='Med'?'prio-med':'prio-low'}">${prio}</span>
@@ -108,7 +108,7 @@ export function renderHome(){
       const list = groups.get(sec)||[];
       if(!list.length) return '';
       const sectionHeader = sec==='Hoy'? 'Today' : sec;
-      return `<div style="margin-top:6px"><div style="font-weight:700;margin-bottom:6px">${sectionHeader}</div>
+      return `<div class="mt-6"><div class="fw-700 mb-6">${sectionHeader}</div>
         ${list.map(it=>{
           const t = it.t;
           const st = it.st;
@@ -118,13 +118,14 @@ export function renderHome(){
           const due = it.due;
           const pts = isSub ? (parseInt(st.points||'0',10)||0) : displayPoints(t);
           const tags = (t.tags||[]).slice(0,3);
-          const indent = isSub ? 'padding-left:18px' : '';
+          const indentClass = isSub ? 'pl-18' : '';
           const totalSubs=(t.subtasks||[]).length; const doneSubs=(t.subtasks||[]).filter(s=>s.done||s.status===FINAL_STATUS).length;
           const prog = totalSubs? Math.round((doneSubs/totalSubs)*100) : 0;
           const openAttr = isSub ? `data-open-sub="${t.id}:${st.id}"` : `data-open="${t.id}"`;
           const isClosed = it.status===FINAL_STATUS;
           const closeBtn = !isClosed ? (isSub ? `<button class="btn success" data-close-sub="${t.id}:${st.id}">✔</button>` : `<button class="btn success" data-close="${t.id}">✔</button>`) : '';
-          return `<div class="task ${it.overdue?'over':''} ${isClosed?'closed':''}" style="cursor:default;${indent};${it.overdue?'background:rgba(248,113,113,.08);border-style:dashed;border-color:rgba(248,113,113,.25)':''}">
+          const prog5 = Math.round(prog/5)*5;
+          return `<div class="task ${it.overdue?'over':''} ${isClosed?'closed':''} static ${indentClass}">
             <header><h4 ${openAttr}>${escapeHtml(title)}</h4>
               <div class="icons">${closeBtn}</div>
             </header>
@@ -134,7 +135,7 @@ export function renderHome(){
               <span class="pill">🧮 ${pts}pt</span>
               ${tags.map(x=>`<span class="pill">#${escapeHtml(x)}</span>`).join('')}
             </div>
-            ${totalSubs?`<div style="height:4px;background:var(--border);border-radius:999px;margin-top:6px;overflow:hidden"><div style="height:100%;width:${prog}%;background:linear-gradient(90deg,var(--primary),var(--accent))"></div></div>`:''}
+            ${totalSubs?`<div class="progress progress-thin mt-6"><div class="wp-${prog5}"></div></div>`:''}
           </div>`
         }).join('')}
       </div>`;
@@ -160,13 +161,13 @@ export function renderHome(){
       return { it, startAt:s, endAt:e, start:startFloat, duration: durationHours };
     });
   const right=`<div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center">
+    <div class="r justify-between items-center">
       <h3 class="h">Calendar — ${new Date().toLocaleDateString()}</h3>
-      <label class="r" style="gap:6px"><input type="checkbox" id="toggleClosedCal" ${state.settings?.showClosed?'checked':''}/> Mostrar cerradas</label>
+      <label class="r gap-6"><input type="checkbox" id="toggleClosedCal" ${state.settings?.showClosed?'checked':''}/> Mostrar cerradas</label>
     </div>
-    <div style="display:grid;grid-template-columns:80px 1fr;gap:8px;max-height:70vh;overflow:auto">
-      <div>${hours.map(h=>`<div style="height:48px;color:var(--muted)">${(h%12)||12}${h<12?'am':'pm'}</div>`).join('')}</div>
-      <div id="timeline" style="position:relative;border-left:1px solid var(--border)">
+    <div class="cal-grid">
+      <div class="hours">${hours.map(h=>`<div class="hour muted">${(h%12)||12}${h<12?'am':'pm'}</div>`).join('')}</div>
+      <div id="timeline" class="timeline">
         ${events.map(e=>{
           const top=(e.start-8)*48; const height=Math.max(24, e.duration*48);
           const it=e.it; const t=it.t; const st=it.st; const isSub=it.kind==='sub';
@@ -175,9 +176,9 @@ export function renderHome(){
           const dataId = isSub ? `${t.id}:${st.id}` : `${t.id}`;
           const timeLabel = `${fmtDateTime(e.startAt).split(' ')[1]} — ${fmtDateTime(e.endAt).split(' ')[1]}`;
           const isClosed = it.status===FINAL_STATUS;
-          return `<div class="task ${isClosed?'closed':''}" draggable="true" data-evt="${dataId}" style="position:absolute;left:8px;right:8px;top:${top}px;height:${height}px"><header><h4 ${openAttr}>${escapeHtml(title)}</h4></header><div class="meta"><span class="pill">${timeLabel}</span></div></div>`
+          return `<div class="task event ${isClosed?'closed':''}" draggable="true" data-evt="${dataId}" style="top:${top}px;height:${height}px"><header><h4 ${openAttr}>${escapeHtml(title)}</h4></header><div class="meta"><span class="pill">${timeLabel}</span></div></div>`
         }).join('')}
-        ${hours.map(h=>`<div class="slot" data-hour="${h}" style="position:absolute;left:0;right:0;top:${(h-8)*48}px;height:48px"></div>`).join('')}
+        ${hours.map(h=>`<div class="slot" data-hour="${h}" style="top:${(h-8)*48}px"></div>`).join('')}
       </div>
     </div>
   </div>`;

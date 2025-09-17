@@ -22,9 +22,9 @@ const ROUTE_TITLES = {
 };
 
 function setActive(view){
-  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.view===view));
   document.querySelectorAll('main .view').forEach(v=>{
-    v.style.display = (v.id === 'view-'+view ? 'block' : 'none');
+    const show = (v.id === 'view-'+view);
+    v.classList.toggle('show', show);
   });
   if(view==='home') renderHome();
   if(view==='board') renderBoard();
@@ -43,9 +43,7 @@ function setActive(view){
   const name = ROUTE_TITLES[view] || 'Inicio';
   try{ document.title = `Clickap — ${name}`; }catch{}
 }
-document.querySelectorAll('.tab').forEach(t=>{
-  t.addEventListener('click', ()=> goto(t.dataset.view));
-});
+// Legacy .tab elements removed; subbar .tab-btn handles navigation
 
 // Wire subbar navigation buttons to route switching
 document.addEventListener('click', (e)=>{
@@ -123,9 +121,8 @@ if(!parseHash()){
   const saved = localStorage.getItem('clickap.route');
   const init = ROUTES.includes(saved||'') ? saved : 'home';
   window.location.hash = `#/${init}`;
-} else {
-  onHashChange();
 }
+onHashChange();
 
 // Global keyboard shortcuts: Ctrl/Cmd + 1..6 to navigate
 window.addEventListener('keydown', (e)=>{

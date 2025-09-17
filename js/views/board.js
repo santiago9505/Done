@@ -36,7 +36,7 @@ export function renderBoard(){
     }
     sub.innerHTML = `
       ${ctx}
-      <label class="r" style="gap:6px"><input type="checkbox" id="sbShowClosed" ${state.settings?.showClosed?'checked':''}/> Mostrar cerradas</label>
+      <label class="r gap-6"><input type="checkbox" id="sbShowClosed" ${state.settings?.showClosed?'checked':''}/> Mostrar cerradas</label>
       <label>Agrupar:</label>
       <select id="sbGroupBoard">
         <option value="status" ${state.groupBoard==='status'?'selected':''}>Estado</option>
@@ -61,9 +61,9 @@ export function renderBoard(){
   const q=(document.getElementById('globalSearch')?.value||'').toLowerCase().trim();
 
   if(state.groupBoard==='status'){
-    const grid=document.createElement('div');
-    grid.className='board';
-    grid.style.gridTemplateColumns=`repeat(${state.columns.length}, minmax(260px,1fr))`;
+  const grid=document.createElement('div');
+  grid.className='board';
+  grid.setAttribute('data-cols', String(state.columns.length));
 
     state.columns.forEach(col=>{
       const colEl=document.createElement('div');
@@ -111,9 +111,9 @@ export function renderBoard(){
     const allTags = Array.from(new Set((state.tasks||[]).flatMap(t=>t.tags||[]))).sort();
     const names = ['No tag', ...allTags];
 
-    const grid=document.createElement('div');
-    grid.className='board';
-    grid.style.gridTemplateColumns=`repeat(${names.length}, minmax(260px,1fr))`;
+  const grid=document.createElement('div');
+  grid.className='board';
+  grid.setAttribute('data-cols', String(names.length));
 
     names.forEach(tag=>{
       const colEl=document.createElement('div');
@@ -199,17 +199,17 @@ export function renderTaskCard(t){
     const det=document.createElement('details');
     det.open=false;
     det.innerHTML=`<summary>Subtareas (${doneSubs}/${totalSubs})</summary>`;
-    const list=document.createElement('div'); list.style.marginTop='6px';
+  const list=document.createElement('div'); list.className='mt-6';
     // Header-like row
     const hdr=document.createElement('div');
     hdr.className='sub-row header';
     hdr.innerHTML = `
-      <span style="width:20px"></span>
-      <span style="flex:1;min-width:120px;color:var(--muted)">Título</span>
-      <span style="width:80px;color:var(--muted)">Pts</span>
-      <span style="width:180px;color:var(--muted)">Inicio</span>
-      <span style="width:200px;color:var(--muted)">Vence</span>
-      <span style="width:40px"></span>
+      <span class="w-20"></span>
+      <span class="flex-1 minw-120 muted">Ttulo</span>
+      <span class="w-80 muted">Pts</span>
+      <span class="w-180 muted">Inicio</span>
+      <span class="w-200 muted">Vence</span>
+      <span class="w-40"></span>
     `;
     list.appendChild(hdr);
     (t.subtasks||[]).forEach((st,idx)=> list.appendChild(renderSubtaskRow(t, st, idx)) );
@@ -217,11 +217,11 @@ export function renderTaskCard(t){
     const addRow=document.createElement('div');
     addRow.className='sub-row';
     addRow.innerHTML = `
-      <span style="width:20px"></span>
-      <input type="text" placeholder="Nueva subtarea" style="flex:1;min-width:120px" />
-      <input type="number" min="0" value="1" style="width:80px" title="Points"/>
-      <input type="datetime-local" style="width:180px" title="Inicio"/>
-      <input type="datetime-local" style="width:200px" title="Vence"/>
+      <span class="w-20"></span>
+      <input type="text" placeholder="Nueva subtarea" class="flex-1 minw-120" />
+      <input type="number" min="0" value="1" class="w-80" title="Points"/>
+      <input type="datetime-local" class="w-180" title="Inicio"/>
+      <input type="datetime-local" class="w-200" title="Vence"/>
       <button class="btn" title="Añadir">＋</button>
     `;
     const [titleNew, ptsNew, startNew, dueNew, addBtn] = [addRow.children[1], addRow.children[2], addRow.children[3], addRow.children[4], addRow.children[5]];
@@ -292,10 +292,10 @@ function renderSubtaskRow(parent, st){
   row.className='sub-row';
   row.innerHTML = `
     <input type="checkbox" ${st.status===FINAL_STATUS||st.done?'checked':''} title="Hecha"/>
-    <input type="text" value="${escapeAttr(st.title||'')}" placeholder="Título"/>
-    <input type="number" min="0" value="${st.points||0}" style="width:80px" title="Points"/>
-    <input type="datetime-local" value="${st.startAt? toLocalDatetimeInput(st.startAt):''}" style="width:180px" title="Inicio"/>
-    <input type="datetime-local" value="${st.due? toLocalDatetimeInput(st.due):''}" style="width:200px" title="Vence"/>
+    <input type="text" value="${escapeAttr(st.title||'')}" placeholder="Ttulo"/>
+    <input type="number" min="0" value="${st.points||0}" class="w-80" title="Points"/>
+    <input type="datetime-local" value="${st.startAt? toLocalDatetimeInput(st.startAt):''}" class="w-180" title="Inicio"/>
+    <input type="datetime-local" value="${st.due? toLocalDatetimeInput(st.due):''}" class="w-200" title="Vence"/>
     <button class="btn ghost" title="Abrir">✏️</button>
   `;
   const [chk, titleEl, ptsEl, startEl, dueEl, editBtn] =

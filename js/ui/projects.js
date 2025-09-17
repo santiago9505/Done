@@ -137,11 +137,11 @@ function showEmojiPicker(anchorEl, workspaceId){
   if(!picker){
     picker = document.createElement('div');
     picker.id = 'emojiPicker';
-    picker.style.cssText = 'position:fixed;z-index:10000;background:var(--panel);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);padding:8px;max-width:320px;max-height:260px;overflow:auto;display:grid;grid-template-columns:repeat(10,1fr);gap:6px';
+    picker.className = 'emoji-picker';
     document.body.appendChild(picker);
-    document.addEventListener('click', (e)=>{ if(picker && !picker.contains(e.target) && e.target!==anchorEl) picker.style.display='none'; });
+    document.addEventListener('click', (e)=>{ if(picker && !picker.contains(e.target) && e.target!==anchorEl) picker.classList.remove('open'); });
   }
-  picker.innerHTML = EMOJI_SET.map(e=>`<button data-emo="${e}" style="font-size:18px;border:none;background:transparent;cursor:pointer;line-height:1.2">${e}</button>`).join('');
+  picker.innerHTML = EMOJI_SET.map(e=>`<button data-emo="${e}" class="emoji-btn">${e}</button>`).join('');
   picker.querySelectorAll('[data-emo]').forEach(btn=>{
     btn.onclick = ()=>{
       const emo = btn.getAttribute('data-emo');
@@ -153,7 +153,7 @@ function showEmojiPicker(anchorEl, workspaceId){
   const r = anchorEl.getBoundingClientRect();
   picker.style.left = Math.min(window.innerWidth-340, Math.max(8, r.left)) + 'px';
   picker.style.top  = Math.min(window.innerHeight-280, Math.max(8, r.bottom+6)) + 'px';
-  picker.style.display = 'grid';
+  picker.classList.add('open');
 }
 
 /* ========== Render sidebar ========== */
@@ -165,7 +165,7 @@ function renderList(host){
   host.querySelector('.proj-list').innerHTML = `
   <div class="proj ${state.workspaceFilter==='all'?'active':''}" data-sel="all"><span class="name">Todos</span></div>
   <div class="proj ${state.workspaceFilter==='none'?'active':''}" data-sel="none"><span class="name">Sin workspace</span></div>
-    <div style="margin:6px 0;color:var(--muted);font-size:12px">Favoritos</div>
+  <div class="muted-note my-6">Favoritos</div>
     <div class="fav-zone">
       ${favs.map(p=>`
   <div class="proj ${state.workspaceFilter===p.id?'active':''}" draggable="true" data-id="${p.id}" data-sel="${p.id}">
@@ -173,10 +173,10 @@ function renderList(host){
           <span class="name">${stripEmojiPrefix(p.name||'')}</span>
           <span class="x" data-star="${p.id}" title="Quitar de favoritos">★</span>
         </div>`).join('')}
-      ${!favs.length?'<div style="color:var(--muted);font-size:12px">Arrastra aquí</div>':''}
+  ${!favs.length?'<div class="muted-note">Arrastra aquí</div>':''}
     </div>
     <details open>
-      <summary style="cursor:pointer;color:var(--muted);font-size:12px">Todos</summary>
+      <summary class="sidebar-summary">Todos</summary>
       ${others.map(p=>`
   <div class="proj ${state.workspaceFilter===p.id?'active':''}" data-sel="${p.id}">
           <span class="emoji" data-emoji-edit="${p.id}" title="Cambiar emoji">${p.emoji||'📁'}</span>
@@ -295,10 +295,10 @@ export function renderProjectsSidebar(){
       <input id="pjName" placeholder="Nuevo workspace…"/>
       <button class="btn" id="pjAdd">Añadir</button>
     </div>
-    <div class="r" style="margin-top:8px">
+    <div class="r mt-8">
       <button class="btn" id="pjExport">Exportar</button>
       <button class="btn" id="pjImport">Importar</button>
-      <input type="file" id="pjImportFile" accept="application/json" style="display:none"/>
+      <input type="file" id="pjImportFile" accept="application/json" class="hidden"/>
     </div>
   `;
   renderList(host);

@@ -46,42 +46,41 @@ export function openTaskDialog(init){
 
   const dlg = document.getElementById('taskDialog');
   dlg.innerHTML = `
-    <form class="sheet" method="dialog" style="padding:16px 16px 10px 16px">
+    <form class="sheet p-16 pb-10" method="dialog">
       <div>
         <div class="sheet-head"><div class="dot"></div><h3 class="h-title">${isSub?'Subtarea':'Tarea'}</h3><span class="chip">${isNew?'Nueva':'Editar'}</span></div>
         <div class="meta-bar">
           <span class="chip">Estado: ${t.status}</span>
           ${t.due?`<span class="chip">Vence: ${fmtDateTime(t.due)}</span>`:''}
           <span class="chip">Workspace: ${escapeHtml(projectDisplayName)}</span>
-            <span class="chip">Workspace: ${escapeHtml(projectDisplayName)}</span>
           <span class="chip">Points: ${displayPoints(t)}</span>
         </div>
         <label>Título</label>
-        <input id="t-title" value="${escapeAttr(t.title)}" placeholder="¿Qué harás?" required style="width:100%"/>
-        <div class="inline-grid" style="margin-top:8px">
-          <div><label>Estado</label><select id="t-status" style="width:100%">${state.columns.map(c=>`<option ${t.status===c?'selected':''}>${c}</option>`).join('')}</select></div>
-          <div><label>Prioridad</label><select id="t-prio" style="width:100%"><option ${t.prio==='Low'?'selected':''}>Low</option><option ${t.prio==='Med'?'selected':''}>Med</option><option ${t.prio==='High'?'selected':''}>High</option></select></div>
+        <input id="t-title" value="${escapeAttr(t.title)}" placeholder="¿Qué harás?" required class="w-full"/>
+        <div class="inline-grid mt-8">
+          <div><label>Estado</label><select id="t-status" class="w-full">${state.columns.map(c=>`<option ${t.status===c?'selected':''}>${c}</option>`).join('')}</select></div>
+          <div><label>Prioridad</label><select id="t-prio" class="w-full"><option ${t.prio==='Low'?'selected':''}>Low</option><option ${t.prio==='Med'?'selected':''}>Med</option><option ${t.prio==='High'?'selected':''}>High</option></select></div>
         </div>
-        ${isSub? '' : `<div class="inline-grid" style="margin-top:8px">
+        ${isSub? '' : `<div class="inline-grid mt-8">
             <div>
                 <label>Workspace</label>
-              <select id="t-project" style="width:100%">
+              <select id="t-project" class="w-full">
                   <option value="" ${t.workspaceId==null?'selected':''}>Sin workspace</option>
                   ${(state.workspaces||[]).map(p=>`<option value="${p.id}" ${t.workspaceId===p.id?'selected':''}>${escapeHtml(stripEmojiPrefix(p.name||''))}</option>`).join('')}
               </select>
             </div>
             <div></div>
           </div>`}
-        <div class="inline-grid" style="margin-top:8px">
-          <div><label>Inicio</label><input id="t-startAt" type="datetime-local" value="${t.startAt ? toLocalDatetimeInput(t.startAt) : ''}" style="width:100%"/></div>
-          <div><label>Vence</label><input id="t-due" type="datetime-local" value="${t.due ? toLocalDatetimeInput(t.due) : ''}" style="width:100%"/></div>
-          <div><label>Points</label><input id="t-points" type="number" min="0" step="1" value="${t.points||0}" style="width:100%" ${(t.subtasks&&t.subtasks.length && !isSub)?'disabled title="Sumado desde subtareas"':''}/></div>
+        <div class="inline-grid mt-8">
+          <div><label>Inicio</label><input id="t-startAt" type="datetime-local" value="${t.startAt ? toLocalDatetimeInput(t.startAt) : ''}" class="w-full"/></div>
+          <div><label>Vence</label><input id="t-due" type="datetime-local" value="${t.due ? toLocalDatetimeInput(t.due) : ''}" class="w-full"/></div>
+          <div><label>Points</label><input id="t-points" type="number" min="0" step="1" value="${t.points||0}" class="w-full" ${(t.subtasks&&t.subtasks.length && !isSub)?'disabled title="Sumado desde subtareas"':''}/></div>
         </div>
-        <div style="margin-top:8px"><label>Descripción</label><textarea id="t-desc" placeholder="Detalles…" style="width:100%;min-height:120px">${escapeHtml(t.desc||'')}</textarea></div>
-        <div style="margin-top:8px"><label>Tags</label>${tagBoxHtml(t.tags||[])}</div>
-        ${isSub? '' : `<div style="margin-top:8px">
+        <div class="mt-8"><label>Descripción</label><textarea id="t-desc" placeholder="Detalles…" class="w-full minh-120">${escapeHtml(t.desc||'')}</textarea></div>
+        <div class="mt-8"><label>Tags</label>${tagBoxHtml(t.tags||[])}</div>
+        ${isSub? '' : `<div class="mt-8">
             <label>Subtareas (una por línea, usa [x] para marcadas) — <span class="chip">Tip: “Título | puntos”</span></label>
-            <textarea id="t-subtasks" placeholder="[ ] Diseñar pantalla | 1\n[x] Escribir tests | 2" style="width:100%;min-height:100px">${(t.subtasks||[]).map(st=>`${(st.status===FINAL_STATUS||st.done)?'[x]':'[ ]'} ${escapeHtml(st.title||'')} | ${st.points||1}`).join('\n')}</textarea>
+            <textarea id="t-subtasks" placeholder="[ ] Diseñar pantalla | 1\n[x] Escribir tests | 2" class="w-full minh-100">${(t.subtasks||[]).map(st=>`${(st.status===FINAL_STATUS||st.done)?'[x]':'[ ]'} ${escapeHtml(st.title||'')} | ${st.points||1}`).join('\n')}</textarea>
           </div>`}
         <div class="footer-actions">
           ${!isNew?`<button class="btn" id="t-delete" value="delete">Eliminar</button>`:''}
@@ -93,30 +92,30 @@ export function openTaskDialog(init){
         <div class="card">
           <div class="r"><span class="chip">Recurrencia</span></div>
           <div class="r"><select id="t-recur-trigger"><option value="complete" ${t.recur?.trigger==='complete'?'selected':''}>On status change: Complete</option><option value="done" ${t.recur?.trigger==='done'?'selected':''}>On status change: Done</option><option value="schedule" ${t.recur?.trigger==='schedule'?'selected':''}>On a schedule</option></select></div>
-          <div class="r"><select id="t-recur-type"><option value="none" ${t.recur?.type==='none'?'selected':''}>None</option><option value="daily" ${t.recur?.type==='daily'?'selected':''}>Daily</option><option value="weekly" ${t.recur?.type==='weekly'?'selected':''}>Weekly</option><option value="monthly" ${t.recur?.type==='monthly'?'selected':''}>Monthly</option><option value="yearly" ${t.recur?.type==='yearly'?'selected':''}>Yearly</option><option value="daysAfter" ${t.recur?.type==='daysAfter'?'selected':''}>Days after…</option></select><input id="t-recur-every" type="number" min="1" value="${t.recur?.every||1}" style="width:90px"/><span class="chip">Cada N</span></div>
+          <div class="r"><select id="t-recur-type"><option value="none" ${t.recur?.type==='none'?'selected':''}>None</option><option value="daily" ${t.recur?.type==='daily'?'selected':''}>Daily</option><option value="weekly" ${t.recur?.type==='weekly'?'selected':''}>Weekly</option><option value="monthly" ${t.recur?.type==='monthly'?'selected':''}>Monthly</option><option value="yearly" ${t.recur?.type==='yearly'?'selected':''}>Yearly</option><option value="daysAfter" ${t.recur?.type==='daysAfter'?'selected':''}>Days after…</option></select><input id="t-recur-every" type="number" min="1" value="${t.recur?.every||1}" class="w-90"/><span class="chip">Cada N</span></div>
           <label class="r"><input type="checkbox" id="t-recur-skip" ${t.recur?.skipWeekends?'checked':''}/> Skip weekends</label>
           <label class="r"><input type="checkbox" id="t-recur-create" ${t.recur?.createNew!==false?'checked':''}/> Create new task</label>
           <label class="r"><input type="checkbox" id="t-recur-forever" ${t.recur?.forever!==false?'checked':''}/> Recur forever</label>
           <div class="r"><span>Update status to:</span><select id="t-recur-nextstatus">${state.columns.map(c=>`<option ${t.recur?.nextStatus===c?'selected':''}>${c}</option>`).join('')}</select></div>
         </div>
-        <div class="card"><div class="r"><span class="chip">Vincular docs</span></div><select id="t-docs" multiple size="6" style="width:100%">${(state.docs||[]).map(d=>`<option value="${d.id}" ${t.docIds?.includes(d.id)?'selected':''}>${escapeHtml(d.title||'Documento')}</option>`).join('')}</select></div>
+  <div class="card"><div class="r"><span class="chip">Vincular docs</span></div><select id="t-docs" multiple size="6" class="w-full">${(state.docs||[]).map(d=>`<option value="${d.id}" ${t.docIds?.includes(d.id)?'selected':''}>${escapeHtml(d.title||'Documento')}</option>`).join('')}</select></div>
         <!-- NUEVO: Comentarios/Actividad -->
         <div class="card" id="t-commentsCard">
-          <div class="r" style="justify-content:space-between;align-items:center">
+          <div class="r justify-between items-center">
             <span class="chip">Comentarios</span>
-            <small style="color:var(--muted)">Arrastra archivos o pega imágenes</small>
+            <small class="muted">Arrastra archivos o pega imágenes</small>
           </div>
-          <div id="t-commentsList" class="sub-list" style="max-height:38vh;overflow:auto;margin-top:6px"></div>
-          <div class="r" style="flex-direction:column;gap:6px;margin-top:8px">
-            <div id="t-attachPreview" class="r" style="flex-wrap:wrap;gap:6px"></div>
-            <textarea id="t-newComment" placeholder="Escribe un comentario…" style="width:100%;min-height:70px"></textarea>
-            <div class="r" style="justify-content:space-between;width:100%">
-              <div class="r" style="gap:6px">
+          <div id="t-commentsList" class="sub-list scroll-area maxh-38vh mt-6"></div>
+          <div class="r col gap-6 mt-8">
+            <div id="t-attachPreview" class="r wrap gap-6"></div>
+            <textarea id="t-newComment" placeholder="Escribe un comentario…" class="w-full minh-70"></textarea>
+            <div class="r justify-between w-full">
+              <div class="r gap-6">
                 <input type="file" id="t-attachFile" multiple
                   accept="image/*,video/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/zip,*/*"
-                  style="display:none"/>
+                  class="hidden"/>
                 <button class="btn" type="button" id="t-attachBtn">Adjuntar</button>
-                <span class="chip" id="t-dropHint" style="display:none">Suelta archivos aquí…</span>
+                <span class="chip hidden" id="t-dropHint">Suelta archivos aquí…</span>
               </div>
               <button class="btn primary" type="button" id="t-addComment">Agregar</button>
             </div>
@@ -153,7 +152,7 @@ export function openTaskDialog(init){
       const safeName = escapeHtml(f.name||'archivo');
       if((f.type||'').startsWith('image/')){
         return `<div class="tag" data-remove="${f.id}" title="${safeName}">
-          <img src="${f.dataUrl}" alt="${safeName}" style="width:64px;height:48px;object-fit:cover;border-radius:6px;border:1px solid var(--border)"/>
+          <img src="${f.dataUrl}" alt="${safeName}" class="thumb-64x48"/>
           <span class="x">×</span>
         </div>`;
       }
@@ -180,19 +179,19 @@ export function openTaskDialog(init){
         const safeName = escapeHtml(f.name||'archivo');
         if((f.type||'').startsWith('image/')){
           return `<a href="${f.dataUrl}" target="_blank" download="${safeName}" class="tag" title="${safeName}">
-            <img src="${f.dataUrl}" alt="${safeName}" style="width:80px;height:60px;object-fit:cover;border-radius:6px;border:1px solid var(--border)"/>
+            <img src="${f.dataUrl}" alt="${safeName}" class="thumb-80x60"/>
           </a>`;
         }
         if((f.type||'').startsWith('video/')){
-          return `<video src="${f.dataUrl}" controls style="width:160px;max-width:100%;border-radius:8px;border:1px solid var(--border)"></video>`;
+          return `<video src="${f.dataUrl}" controls class="video-thumb"></video>`;
         }
         return `<a href="${f.dataUrl}" download="${safeName}" class="tag" title="${safeName}">📎 ${safeName}</a>`;
       }).join('');
       return `<div class="sub-row" data-cid="${c.id}">
-        <div style="flex:1">
-          <div style="font-size:12px;color:var(--muted)">${when}</div>
-          ${text?`<div style="margin:4px 0">${text.replace(/\n/g,'<br/>')}</div>`:''}
-          <div class="r" style="flex-wrap:wrap;gap:6px">${filesHtml}</div>
+        <div class="flex-1">
+          <div class="text-12 muted">${when}</div>
+          ${text?`<div class="my-4">${text.replace(/\n/g,'<br/>')}</div>`:''}
+          <div class="r wrap gap-6">${filesHtml}</div>
         </div>
         <span class="x" data-delc="${c.id}" title="Eliminar">×</span>
       </div>`;
@@ -234,10 +233,10 @@ export function openTaskDialog(init){
 
   // Soporte drag & drop en la tarjeta de comentarios
   const commentsCard = dlg.querySelector('#t-commentsCard');
-  commentsCard.addEventListener('dragover', (e)=>{ e.preventDefault(); dropHint.style.display='inline-block'; });
-  commentsCard.addEventListener('dragleave', ()=>{ dropHint.style.display='none'; });
+  commentsCard.addEventListener('dragover', (e)=>{ e.preventDefault(); dropHint.classList.remove('hidden'); });
+  commentsCard.addEventListener('dragleave', ()=>{ dropHint.classList.add('hidden'); });
   commentsCard.addEventListener('drop', async (e)=>{
-    e.preventDefault(); dropHint.style.display='none';
+    e.preventDefault(); dropHint.classList.add('hidden');
     const files = Array.from(e.dataTransfer?.files||[]);
     if(files.length) await addFiles(files);
   });
@@ -354,8 +353,8 @@ export function closeTask(id){
 function toast(msg){ 
   const t=document.createElement('div'); 
   t.textContent=msg; 
-  t.style.cssText='position:fixed;bottom:16px;right:16px;background:var(--panel);border:1px solid var(--border);box-shadow:var(--shadow);padding:10px 14px;border-radius:12px;z-index:99999;max-width:360px'; 
+  t.className='toast';
   document.body.appendChild(t); 
-  setTimeout(()=>{ t.style.opacity='0'; t.style.transform='translateY(6px)'; t.style.transition='all .3s' }, 2000); 
+  setTimeout(()=> t.classList.add('fade-out'), 2000); 
   setTimeout(()=> t.remove(), 2500); 
 }

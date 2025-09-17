@@ -8,7 +8,7 @@ export function renderDocs(){
     <div class="docs">
       <div>
         <div class="tree">
-          <div style="display:flex;gap:6px; padding:6px">
+          <div class="flex gap-6 p-16 pb-10">
             <button class="btn primary" id="addDoc">+ Doc</button>
             <button class="btn" id="addSubDoc">+ Subdoc</button>
             <button class="btn" id="renameDoc">Renombrar</button>
@@ -30,11 +30,11 @@ export function renderDocs(){
           <label class="btn"><input type="file" id="imgUpload" accept="image/*" hidden/>Imagen</label>
         </div>
         <div id="rich" class="rich" contenteditable="true"></div>
-        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <div class="flex gap-8 mt-8 wrap">
           <button class="btn primary" id="saveDoc">Guardar</button>
           <button class="btn" id="previewDoc">Previsualizar</button>
         </div>
-        <div id="docPreview" class="card" style="display:none;margin-top:8px"></div>
+        <div id="docPreview" class="card mt-8 hidden"></div>
       </div>
     </div>`;
 
@@ -105,8 +105,9 @@ export function renderDocs(){
   host.querySelector('#saveDoc').addEventListener('click', saveDoc);
   host.querySelector('#previewDoc').addEventListener('click', ()=>{
     const prev = host.querySelector('#docPreview'); const rich = host.querySelector('#rich');
-    if(prev.style.display==='none'){ prev.style.display='block'; prev.innerHTML = rich.innerHTML; }
-    else prev.style.display='none';
+    const hidden = prev.classList.contains('hidden');
+    if(hidden){ prev.classList.remove('hidden'); prev.innerHTML = rich.innerHTML; }
+    else prev.classList.add('hidden');
   });
 
   // WYSIWYG commands
@@ -138,8 +139,8 @@ export function renderDocs(){
 function toast(msg){ 
   const t=document.createElement('div'); 
   t.textContent=msg; 
-  t.style.cssText='position:fixed;bottom:16px;right:16px;background:var(--panel);border:1px solid var(--border);box-shadow:var(--shadow);padding:10px 14px;border-radius:12px;z-index:99999;max-width:360px'; 
+  t.className='toast';
   document.body.appendChild(t); 
-  setTimeout(()=>{t.style.opacity='0'; t.style.transform='translateY(6px)'; t.style.transition='all .3s'}, 2000); 
+  setTimeout(()=> t.classList.add('fade-out'), 2000); 
   setTimeout(()=>t.remove(), 2500); 
 }

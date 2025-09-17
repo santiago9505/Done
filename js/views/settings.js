@@ -18,12 +18,12 @@ export function renderSettings(){
 
   host.innerHTML = `
     <div class="card"><h3 class="h">Columnas del tablero</h3>
-      <p style="color:var(--muted);margin-top:-6px">Separa por coma. Mínimo 2 columnas.</p>
-      <input id="colsInput" style="width:100%" value="${(state.columns||[]).join(', ')}"/>
-      <div style="margin-top:8px"><button class="btn primary" id="saveCols">Guardar columnas</button></div>
+      <p class="muted mt--6">Separa por coma. Mínimo 2 columnas.</p>
+      <input id="colsInput" class="w-full" value="${(state.columns||[]).join(', ')}"/>
+      <div class="mt-8"><button class="btn primary" id="saveCols">Guardar columnas</button></div>
     </div>
-    <div class="card" style="margin-top:12px"><h3 class="h">Apariencia y personalización</h3>
-      <div class="r" style="flex-wrap:wrap;margin-bottom:10px" id="presetRow">
+    <div class="card mt-12"><h3 class="h">Apariencia y personalización</h3>
+      <div class="r wrap mb-8" id="presetRow">
         ${PRESETS.map(p=>{
           const active = (
             state.settings?.ui?.accent===p.accent &&
@@ -33,17 +33,17 @@ export function renderSettings(){
             state.theme===p.theme
           );
           return `<button class="btn ${active?'primary':''}" data-preset="${p.id}" title="${p.name}">
-            <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${p.accent};margin-right:6px"></span>${p.name}
+            <span class="dot" style="background:${p.accent}"></span>${p.name}
           </button>`;
         }).join('')}
       </div>
       <div class="inline-grid">
         <div>
-          <label style="display:block;margin-bottom:6px;color:var(--muted)">Color de acento</label>
+          <label class="block mb-6 muted">Color de acento</label>
           <input type="color" id="accentColor" value="${state.settings?.ui?.accent||'#60a5fa'}"/>
         </div>
         <div>
-          <label style="display:block;margin-bottom:6px;color:var(--muted)">Densidad</label>
+          <label class="block mb-6 muted">Densidad</label>
           <select id="densitySel">
             <option value="compact" ${state.settings?.ui?.density==='compact'?'selected':''}>Compacta</option>
             <option value="comfortable" ${state.settings?.ui?.density==='comfortable'?'selected':''}>Cómoda</option>
@@ -51,24 +51,24 @@ export function renderSettings(){
           </select>
         </div>
         <div>
-          <label style="display:block;margin-bottom:6px;color:var(--muted)">Radio de esquinas: <b id="radiusVal">${state.settings?.ui?.radius||12}px</b></label>
+          <label class="block mb-6 muted">Radio de esquinas: <b id="radiusVal">${state.settings?.ui?.radius||12}px</b></label>
           <input type="range" id="radiusRange" min="6" max="20" step="1" value="${state.settings?.ui?.radius||12}"/>
         </div>
         <div>
-          <label style="display:block;margin-bottom:6px;color:var(--muted)">Escala de fuente: <b id="fontVal">${state.settings?.ui?.fontScale||100}%</b></label>
+          <label class="block mb-6 muted">Escala de fuente: <b id="fontVal">${state.settings?.ui?.fontScale||100}%</b></label>
           <input type="range" id="fontRange" min="90" max="110" step="1" value="${state.settings?.ui?.fontScale||100}"/>
         </div>
       </div>
-      <div class="r" style="margin-top:10px">
+      <div class="r mt-10">
         <button class="btn" id="btnResetUI">Restablecer</button>
       </div>
     </div>
-    <div class="card" style="margin-top:12px"><h3 class="h">Preferencias</h3>
+    <div class="card mt-12"><h3 class="h">Preferencias</h3>
       <label><input type="checkbox" id="humorChk" ${state.humorOscuro?'checked':''}/> Activar “Dark Humor Task Killers”</label>
-      <div style="margin-top:8px"><button class="btn" id="btnTheme">${state.theme==='dark'?'Modo claro ☀️':'Modo oscuro 🌙'}</button></div>
+      <div class="mt-8"><button class="btn" id="btnTheme">${state.theme==='dark'?'Modo claro ☀️':'Modo oscuro 🌙'}</button></div>
     </div>
-    <div class="card" style="margin-top:12px"><h3 class="h">Datos</h3>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <div class="card mt-12"><h3 class="h">Datos</h3>
+      <div class="flex gap-8 wrap">
         <button class="btn" id="btnExport2">Exportar backup</button>
         <label class="btn"><input type="file" id="fileImport2" hidden/>Importar backup</label>
         <button class="btn danger" id="btnReset">Borrar todo</button>
@@ -112,8 +112,8 @@ export function renderSettings(){
 function toast(msg){ 
   const t=document.createElement('div'); 
   t.textContent=msg; 
-  t.style.cssText='position:fixed;bottom:16px;right:16px;background:var(--panel);border:1px solid var(--border);box-shadow:var(--shadow);padding:10px 14px;border-radius:12px;z-index:99999;max-width:360px'; 
+  t.className='toast';
   document.body.appendChild(t); 
-  setTimeout(()=>{t.style.opacity='0'; t.style.transform='translateY(6px)'; t.style.transition='all .3s'}, 2000); 
+  setTimeout(()=> t.classList.add('fade-out'), 2000); 
   setTimeout(()=>t.remove(), 2500); 
 }
